@@ -54,6 +54,8 @@ démarre l’API sur http://localhost:8080.
 cd frontend && npm install && npm run dev 
 ouvre l’interface sur http://localhost:5173.
 
+Etape 2/10 : 13/10/2026  de 18:15 à 19:15
+
 https://github.com/bassembenabbes/FullStackDevOpsProject
 
 git init
@@ -66,7 +68,7 @@ Username for 'https://github.com': bassembenabbes
 Password for 'https://bassembenabbes@github.com': votre Token
 
 
-Etape 2/10 : 13/10/2026 de 17:40 à 17:50 +  de 18:15 à ....................................................
+Etape 3/10 : 13/10/2026  de 21:25 à 22:25
 
 Dockeriser tout le projet : 
 un Dockerfile pour le backend (build Maven puis image JRE) 
@@ -75,27 +77,75 @@ le tout dans le même docker-compose.yml.
 Un seul docker-compose up lancerait alors l’ensemble.
 
 ## 1. Tout lancer avec Docker Compose
+docker-compose down
     docker-compose up --build
 Application : http://localhost:3000 (API : http://localhost:8080/api/personnes)
 Java 17 : dans `docker-compose.yml`, mettre `JAVA_VERSION: 17` (et `mvn -Djava.version=17` en local).
 
-Qualité : tests unitaires et d’intégration du backend (Testcontainers pour PostgreSQL)
+curl -i -X POST localhost:3000/api/personnes \
+  -H 'Content-Type: application/json' -H 'Origin: http://localhost:3000' \
+  -d '{"code":"P0003","name":"Ali","cin":"92345678"}'
+#!!!Invalid CORS reques!!! :Dans frontend/nginx.conf, ajoutez une ligne dans le bloc location /api/ :
+  location /api/ {
+    proxy_pass http://backend:8080;
+    proxy_set_header Host $host;
+    proxy_set_header Origin "";
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+    
 
+Qualité : tests unitaires et d’intégration du backend (Testcontainers pour PostgreSQL)
 
 ## 2. Tests (Docker requis pour Testcontainers)
     cd backend && mvn verify
 
-Kubernetes : le dossiers k8s/FullStackDevOpsProject.
+Kubernetes : le dossiers  FullStackDevOpsProject.
 Il faudrait des manifestes (Deployment, Service, Secret pour les identifiants de la base, PersistentVolumeClaim pour PostgreSQL, Ingress).
 ## 3. Kubernetes (minikube / kind)
+minikube start
+minikube status
+kubectl get nodes
+eval $(minikube docker-env)
+docker context use default
+docker context show 
+
+# 1. Construire les images dans Minikube
+docker build -t personnes-backend:latest ./backend
+docker build -t personnes-frontend:latest ./frontend
+
+# 2. Vérifier qu'elles y sont
+minikube image ls | grep personnes
+docker.io/library/personnes-frontend:latest
+docker.io/library/personnes-backend:latest
+
+
+# 3. Voir votre structure k8s
+ls -la k8s/    # ou l'emplacement de vos manifests
+
+
     docker build -t personnes-backend:latest backend
+    docker build --no-cache -t personnes-backend:latest backend
     docker build -t personnes-frontend:latest frontend
     minikube image load personnes-backend:latest personnes-frontend:latest   # kind : kind load docker-image ...
+    
     minikube addons enable ingress
+# 4. Déployer
     kubectl apply -k k8s
     kubectl -n personnes get pods -w
 Accès : ajouter `<ip> personnes.local` à /etc/hosts (`minikube ip`), ou sans Ingress :
     kubectl -n personnes port-forward svc/frontend 3000:80
+    
+minikube ip
+192.168.49.2
+echo "$(minikube ip) personnes.local" | sudo tee -a /etc/hosts
+cat /etc/hosts | grep personnes
+
+# 5. Vérifier
+kubectl -n personnes get pods
+kubectl -n personnes get svc
+kubectl -n personnes get ingress
 
 Pipeline CI/CD : build, tests et push des images, avec GitHub Actions.
 ## 4. CI/CD (GitHub Actions)

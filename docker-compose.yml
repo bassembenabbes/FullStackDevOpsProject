@@ -4,11 +4,41 @@ services:
     container_name: personnes-db
     environment:
       POSTGRES_DB: personnes
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
-      - "5436:5432"
+      - "5436:5432"          # accès local (DBeaver, mvn spring-boot:run)
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d personnes"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        JAVA_VERSION: 17     # mettre 25 pour Java 25
+    container_name: personnes-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/personnes
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    container_name: personnes-frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:8080"
+
 volumes:
   pgdata:
