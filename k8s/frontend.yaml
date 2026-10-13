@@ -14,10 +14,12 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: frontend
-          image: personnes-frontend:latest
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/bassembenabbes/personnes-frontend:latest # personnes-frontend:latest
+          imagePullPolicy: Always # IfNotPresent
           ports:
             - containerPort: 8080
           readinessProbe:

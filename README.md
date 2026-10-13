@@ -68,7 +68,7 @@ Username for 'https://github.com': bassembenabbes
 Password for 'https://bassembenabbes@github.com': votre Token
 
 
-Etape 3/10 : 13/10/2026  de 21:25 à 22:25
+Etape 3/10 : 13/10/2026  de 21:25 à 23:25
 
 Dockeriser tout le projet : 
 un Dockerfile pour le backend (build Maven puis image JRE) 
@@ -152,10 +152,38 @@ Pipeline CI/CD : build, tests et push des images, avec GitHub Actions.
 `.github/workflows/ci.yml` : tests backend, build frontend, puis build/push des images
 `ghcr.io/<compte>/personnes-backend` et `personnes-frontend` (push uniquement sur main et tags `v*`).
 
+docker pull ghcr.io/bassembenabbes/personnes-backend:sha-5983d68
+docker pull ghcr.io/bassembenabbes/personnes-frontend:sha-5983d68
 
 
 
+kubectl create secret docker-registry ghcr-secret \
+  --docker-server=ghcr.io \
+  --docker-username=bassembenabbes \
+  --docker-password=<VOTRE_PAT>  \
+  --docker-email=bassem.benabbes@gmail.com \
+  -n personnes
+  
+  Remplacez <VOTRE_PAT> par le token copié
+  
+  
+  imagePullSecrets:
+        - name: ghcr-secret        # ← AJOUTER
+      containers:
+        - name: backend
+          image: ghcr.io/bassembenabbes/personnes-backend:latest  # ← CHANGER
+          imagePullPolicy: Always   # ← CHANGER (car l'image distante peut être mise à jour)
+         
+         
+         
+kubectl apply -k k8s
+kubectl -n personnes get pods -w
+
+Vos pods devraient maintenant télécharger les images depuis GHCR. : GitHub Container Registry 
 
 
 
-
+         
+         
+  
+  

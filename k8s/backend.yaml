@@ -16,10 +16,12 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+      imagePullSecrets:
+        - name: ghcr-secret        # ← AJOUTER
       containers:
         - name: backend
-          image: personnes-backend:latest
-          imagePullPolicy: IfNotPresent # ← OBLIGATOIRE
+          image: ghcr.io/bassembenabbes/personnes-backend:latest  # ← CHANGER : personnes-backend:latest
+          imagePullPolicy: Always   # ← CHANGER (car l'image distante peut être mise à jour) IfNotPresent # ← OBLIGATOIRE
           # Sans imagePullPolicy: IfNotPresent, Kubernetes tentera de télécharger personnes-backend:latest depuis Docker Hub et échouera avec ImagePullBackOff.
           ports:
             - containerPort: 8080
