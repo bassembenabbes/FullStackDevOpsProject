@@ -1,7 +1,7 @@
 # ---------- Monitoring stack : Prometheus + Grafana sur ECS Fargate ----------
 resource "aws_security_group" "monitoring" {
   name        = "${var.project}-monitoring"
-  description = "Prometheus + Grafana accessibles depuis l'exterieur"
+  description = "Prometheus and Grafana access"
   vpc_id      = aws_vpc.main.id
 
   ingress {

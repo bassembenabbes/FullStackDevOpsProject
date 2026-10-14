@@ -426,7 +426,7 @@ desired_count = 1
 github_repo = "bassembenabbes/FullStackDevOpsProject"
 
 cd terraform
-
+terraform fmt
 terraform init
 terraform plan
 terraform apply
