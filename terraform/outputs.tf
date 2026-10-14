@@ -17,3 +17,7 @@ output "ecs_cluster" {
 output "rds_endpoint" {
   value = aws_db_instance.postgres.address
 }
+
+output "grafana_url" {
+  value = "http://${aws_lb.grafana.dns_name}"
+}

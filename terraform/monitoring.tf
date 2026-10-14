@@ -5,17 +5,38 @@ resource "aws_security_group" "monitoring" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description = "Grafana UI"
-    from_port   = 3000
-    to_port     = 3000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    description     = "Grafana UI from ALB"
+    from_port       = 3000
+    to_port         = 3000
+    protocol        = "tcp"
+    security_groups = [aws_security_group.grafana_alb.id]
   }
 
   ingress {
     description = "Prometheus UI"
     from_port   = 9090
     to_port     = 9090
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "grafana_alb" {
+  name        = "${var.project}-grafana-alb"
+  description = "Public access to Grafana ALB"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "Grafana over HTTP"
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -68,7 +89,7 @@ resource "aws_ecs_task_definition" "prometheus" {
           - job_name: 'spring-boot-backend'
             metrics_path: /actuator/prometheus
             static_configs:
-              - targets: ['backend:8080']
+              - targets: ['backend.personnes:8080']
                 labels:
                   application: 'personnes'
         CFG
@@ -126,7 +147,7 @@ resource "aws_ecs_task_definition" "grafana" {
           - name: Prometheus
             type: prometheus
             access: proxy
-            url: http://prometheus:9090
+            url: http://prometheus.personnes:9090
             isDefault: true
             editable: false
         DATASOURCE
@@ -350,6 +371,41 @@ resource "aws_ecs_task_definition" "grafana" {
   ])
 }
 
+resource "aws_lb" "grafana" {
+  name               = "${var.project}-grafana-alb"
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.grafana_alb.id]
+  subnets            = aws_subnet.public[*].id
+}
+
+resource "aws_lb_target_group" "grafana" {
+  name        = "${var.project}-grafana-tg"
+  port        = 3000
+  protocol    = "HTTP"
+  target_type = "ip"
+  vpc_id      = aws_vpc.main.id
+
+  health_check {
+    path                = "/api/health"
+    matcher             = "200"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
+
+resource "aws_lb_listener" "grafana" {
+  load_balancer_arn = aws_lb.grafana.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.grafana.arn
+  }
+}
+
 resource "aws_ecs_service" "prometheus" {
   name            = "prometheus"
   cluster         = aws_ecs_cluster.main.id
@@ -392,6 +448,12 @@ resource "aws_ecs_service" "grafana" {
     assign_public_ip = true
   }
 
+  load_balancer {
+    target_group_arn = aws_lb_target_group.grafana.arn
+    container_name   = "grafana"
+    container_port   = 3000
+  }
+
   service_connect_configuration {
     enabled   = true
     namespace = aws_service_discovery_http_namespace.main.arn
@@ -405,5 +467,5 @@ resource "aws_ecs_service" "grafana" {
     }
   }
 
-  depends_on = [aws_ecs_service.prometheus]
+  depends_on = [aws_ecs_service.prometheus, aws_lb_listener.grafana]
 }

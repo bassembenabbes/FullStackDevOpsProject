@@ -37,6 +37,13 @@ resource "aws_security_group" "tasks" {
     protocol    = "tcp"
     self        = true
   }
+  ingress {
+    description     = "Prometheus scrape du backend"
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.monitoring.id]
+  }
   egress {
     from_port   = 0
     to_port     = 0
