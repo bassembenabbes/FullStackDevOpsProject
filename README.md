@@ -281,6 +281,8 @@ kubectl delete -k k8s
 helm upgrade --install personnes ./helm/personnes \
   -n personnes --create-namespace \
   --set postgres.auth.password='bassem!!!2026'
+  
+  
 
 kubectl -n personnes get pods -w
 
@@ -313,7 +315,7 @@ Il faut donc une seule release par namespace.
 Pour plusieurs environnements (dev, prod), utilisez un namespace par environnement.
 
 
-## Etape 6/10 : 14/10/2026 de 13:00 -->15:00
+## Etape 6/10 : 14/10/2026 de 13:00 -->16:00
 Suite du plan
 Il reste deux parties :
 
@@ -343,10 +345,6 @@ nano terraform.tfvars
 region        = "us-east-1"
 desired_count = 1
 github_repo = "bassembenabbes/FullStackDevOpsProject"
-
-------------
-*-.-.-*-.-.-*
-------------
 
 cd terraform
 
