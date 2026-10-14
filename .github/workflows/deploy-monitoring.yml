@@ -1,0 +1,50 @@
+name: Deploy AWS Monitoring
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+      - 'monitoring/**'
+      - '.github/workflows/deploy-monitoring.yml'
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy-monitoring:
+    name: Prometheus + Grafana on ECS
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: AWS auth via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform apply monitoring stack
+        working-directory: terraform
+        run: terraform apply -auto-approve -var desired_count=1
+
+      - name: Show monitoring services status
+        run: |
+          aws ecs describe-services \
+            --cluster personnes \
+            --services prometheus grafana \
+            --region "$AWS_REGION" \
+            --output table

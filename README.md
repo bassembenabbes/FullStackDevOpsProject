@@ -233,6 +233,85 @@ FRONT=$(terraform output -raw ecr_frontend_url)
 docker build -t $FRONT:latest ../frontend && docker push $FRONT:latest
 aws ecs update-service --cluster personnes --service frontend --force-new-deployment --region us-east-1
 
+## Stack AWS monitoring Prometheus + Grafana
+
+Tu veux maintenant un monitoring AWS visuel avec Grafana pour l’application `personnes`. Le bon modèle est :
+
+- Backend Spring Boot dans ECS Fargate
+- Prometheus dans ECS Fargate pour scraper `/actuator/prometheus`
+- Grafana dans ECS Fargate avec datasource Prometheus
+- Dashboard Grafana dédié pour CPU, mémoire, requêtes HTTP, latence, uptime et health
+
+### Architecture
+```text
+Spring Boot app (ECS)
+   -> /actuator/prometheus
+         |
+         v
+Prometheus (ECS)
+         |
+         v
+Grafana (ECS)
+```
+
+### Fichiers de configuration
+- `terraform/monitoring.tf` : création des services ECS Prometheus + Grafana
+- `monitoring/prometheus/prometheus.yml` : configuration de scrape
+- `monitoring/grafana/provisioning/datasources/datasource.yml` : datasource Grafana -> Prometheus
+- `monitoring/grafana/provisioning/dashboards/backend-overview.json` : dashboard Grafana
+- `.github/workflows/deploy-monitoring.yml` : deployment automatique de la stack monitoring
+
+### Déployer la stack AWS monitoring
+```bash
+cd terraform
+terraform init
+terraform validate
+terraform apply -auto-approve -var desired_count=1
+```
+
+### Déployer uniquement la stack monitoring via GitHub Actions
+```bash
+git add .
+git commit -m "Add AWS monitoring stack"
+git push origin main
+```
+
+Le workflow `.github/workflows/deploy-monitoring.yml` se déclenche sur `main` pour appliquer la configuration Terraform et créer les services ECS `prometheus` et `grafana`.
+
+### Vérifier les services ECS
+```bash
+aws ecs describe-services \
+  --cluster personnes \
+  --services prometheus grafana \
+  --region us-east-1 \
+  --output table
+```
+
+### Ouvrir Grafana
+Tu peux ouvrir le port de Grafana en local pour le test rapide :
+```bash
+aws ecs describe-services --cluster personnes --services grafana --region us-east-1 --query 'services[0].events[*].message'
+```
+
+Puis, si tu exposes le service avec un ALB ou un port-forward de test, ouvre :
+```text
+http://<IP_GRAFANA>:3000
+```
+Identifiants par défaut :
+```text
+user: admin
+password: admin
+```
+
+### Dashboard Grafana
+Dans Grafana, ouvre le dashboard `Personnes backend overview`.
+Il affiche :
+- CPU usage
+- Memory usage
+- Request rate
+- Avg latency
+- Service uptime
+- Health status
 
 La base se trouve dans les sous-réseaux personnes-private-0 et personnes-private-1. 
 Ils sont rattachés à la table de routage principale, qui ne contient que la route locale du VPC, sans passerelle Internet. 

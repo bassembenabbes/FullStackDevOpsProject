@@ -56,9 +56,27 @@ jobs:
       - run: helm lint "$PROJECT_DIR/helm/personnes"
       - run: helm template personnes "$PROJECT_DIR/helm/personnes" -n personnes > /dev/null
 
+  terraform:
+    name: Terraform (fmt + validate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: Terraform fmt
+        working-directory: ${{ env.PROJECT_DIR }}/terraform
+        run: terraform fmt -check -diff
+      - name: Terraform init
+        working-directory: ${{ env.PROJECT_DIR }}/terraform
+        run: terraform init -backend=false
+      - name: Terraform validate
+        working-directory: ${{ env.PROJECT_DIR }}/terraform
+        run: terraform validate
+
   images:
     name: Image ${{ matrix.service }} (build + push ECR)
-    needs: [backend, frontend, helm]
+    needs: [backend, frontend, helm, terraform]
     runs-on: ubuntu-latest
     permissions:
       contents: read
