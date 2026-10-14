@@ -396,4 +396,49 @@ C- EKS (option avancée) : il réutiliserait votre chart Helm.
 
 Logs : CloudWatch, groupes `/ecs/personnes-backend` et `/ecs/personnes-frontend`.
 
+## Etape 7/10 : 14/10/2026 de 18:00-->
+## Surveillance locale (Prometheus + Grafana)
+
+Le projet inclut maintenant un stack de monitoring local :
+
+Pour tout démarrer avec le monitoring local :
+
+```bash
+docker-compose up -d db backend frontend prometheus grafana
+```
+
+Accès local
+Prometheus : http://localhost:9090
+Grafana : http://localhost:3001
+login : admin
+mot de passe : admin
+Endpoint métriques Spring Boot : http://localhost:8080/actuator/prometheus
+
+Prometheus scrape le backend sur `/actuator/prometheus`, 
+et Grafana est préconfiguré avec une datasource Prometheus ainsi qu’un dashboard local de base.
+
+
+
+le backend expose déjà Actuator mais sans endpoint Prometheus. 
+--> compléter le stack local avec les services Docker, la configuration de scrape et le point d’exposition des métriques.
+Modifications principales
+Activation des métriques Spring Boot Prometheus dans pom.xml et application.properties
+Ajout des services localement dans docker-compose.yml
+Ajout de la config Prometheus dans prometheus.yml
+Ajout du datasource Grafana dans datasource.yml
+Ajout d’un dashboard local dans backend-overview.json
+Documentation mise à jour dans README.md
+
+Démarrage
+docker-compose up -d db backend frontend prometheus grafana
+
+
+
+
+
+
+
+
+
+
 
