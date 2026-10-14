@@ -1,0 +1,269 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: {{ .Release.Namespace }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: 'spring-boot-backend'
+        metrics_path: /actuator/prometheus
+        static_configs:
+          - targets: ['backend:8080']
+            labels:
+              application: 'personnes'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "personnes.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: {{ .Values.monitoring.prometheus.image | quote }}
+          ports:
+            - containerPort: 9090
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --web.enable-lifecycle
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml
+          resources:
+            {{- toYaml .Values.monitoring.prometheus.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "personnes.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: {{ .Release.Namespace }}
+data:
+  datasource.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: {{ .Release.Namespace }}
+data:
+  dashboard.yml: |
+    apiVersion: 1
+    providers:
+      - name: 'Local dashboards'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /etc/grafana/provisioning/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-backend
+  namespace: {{ .Release.Namespace }}
+data:
+  backend-overview.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "description": "Utilisation CPU du backend",
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 80 } ] }, "unit": "percentunit" }, "overrides": [] },
+          "gridPos": { "h": 7, "w": 6, "x": 0, "y": 0 },
+          "id": 1,
+          "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "value_and_name" },
+          "targets": [ { "expr": "100 * process_cpu_usage{application=\"personnes\"}", "legendFormat": "CPU", "refId": "A" } ],
+          "title": "CPU usage",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "description": "Mémoire heap utilisée par le backend",
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 250 }, { "color": "red", "value": 500 } ] }, "unit": "decmbytes" }, "overrides": [] },
+          "gridPos": { "h": 7, "w": 6, "x": 6, "y": 0 },
+          "id": 2,
+          "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "value_and_name" },
+          "targets": [ { "expr": "sum(jvm_memory_used_bytes{application=\"personnes\",area=\"heap\"}) / 1024 / 1024", "legendFormat": "RAM", "refId": "A" } ],
+          "title": "Memory usage",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "description": "Requêtes HTTP entrantes par seconde",
+          "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }, "unit": "reqps" }, "overrides": [] },
+          "gridPos": { "h": 7, "w": 6, "x": 12, "y": 0 },
+          "id": 3,
+          "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "value_and_name" },
+          "targets": [ { "expr": "sum(rate(http_server_requests_seconds_count{application=\"personnes\"}[1m]))", "legendFormat": "req/s", "refId": "A" } ],
+          "title": "Request rate",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "description": "Latence p95 du backend",
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 1 } ] }, "unit": "s" }, "overrides": [] },
+          "gridPos": { "h": 7, "w": 6, "x": 18, "y": 0 },
+          "id": 4,
+          "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "value_and_name" },
+          "targets": [ { "expr": "sum(rate(http_server_requests_seconds_sum{application=\"personnes\"}[5m])) / sum(rate(http_server_requests_seconds_count{application=\"personnes\"}[5m]))", "legendFormat": "avg latency", "refId": "A" } ],
+          "title": "Avg latency",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "description": "Temps de fonctionnement du backend",
+          "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }, "unit": "h" }, "overrides": [] },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+          "id": 5,
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [ { "expr": "process_uptime_seconds{application=\"personnes\"} / 3600", "legendFormat": "uptime (h)", "refId": "A" } ],
+          "title": "Service uptime",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "description": "État du backend et vérifications de santé",
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": 0 }, { "color": "green", "value": 1 } ] }, "unit": "short" }, "overrides": [] },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+          "id": 6,
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [ { "expr": "up{job=\"spring-boot-backend\"}", "legendFormat": "backend up", "refId": "A" }, { "expr": "sum(rate(http_server_requests_seconds_count{application=\"personnes\",uri=\"/actuator/health/**\",status=~\"2..\"}[5m]))", "legendFormat": "health checks / min", "refId": "B" } ],
+          "title": "Health status",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "10s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["spring-boot", "local", "personnes"],
+      "templating": { "list": [] },
+      "time": { "from": "now-15m", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Personnes backend overview",
+      "uid": "personnes-backend-overview",
+      "version": 1,
+      "weekStart": ""
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "personnes.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: {{ .Values.monitoring.grafana.image | quote }}
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: {{ .Values.monitoring.grafana.adminUser | quote }}
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: {{ .Values.monitoring.grafana.adminPassword | quote }}
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources/datasource.yml
+              subPath: datasource.yml
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards/dashboard.yml
+              subPath: dashboard.yml
+            - name: dashboard-backend
+              mountPath: /etc/grafana/provisioning/dashboards/backend-overview.json
+              subPath: backend-overview.json
+            - name: data
+              mountPath: /var/lib/grafana
+          resources:
+            {{- toYaml .Values.monitoring.grafana.resources | nindent 12 }}
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboard-backend
+          configMap:
+            name: grafana-dashboard-backend
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "personnes.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000
+{{- end }}

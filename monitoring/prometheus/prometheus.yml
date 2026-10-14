@@ -8,4 +8,4 @@ scrape_configs:
     static_configs:
       - targets: ['backend:8080']
         labels:
-          application: 'personnes-backend'
+          application: 'personnes'

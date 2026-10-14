@@ -44,6 +44,21 @@ postgres:
 externalDatabase:
   url: ""                             # ex. jdbc:postgresql://host:5432/personnes
 
+monitoring:
+  enabled: true
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { memory: 256Mi }
+  grafana:
+    image: grafana/grafana:11.2.0
+    adminUser: admin
+    adminPassword: admin
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { memory: 256Mi }
+
 ingress:
   enabled: true
   className: nginx

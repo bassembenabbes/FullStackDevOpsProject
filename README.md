@@ -417,20 +417,42 @@ Endpoint métriques Spring Boot : http://localhost:8080/actuator/prometheus
 Prometheus scrape le backend sur `/actuator/prometheus`, 
 et Grafana est préconfiguré avec une datasource Prometheus ainsi qu’un dashboard local de base.
 
+### Kubernetes local via Helm (Minikube)
 
+Le projet est conçu pour être déployé entièrement via le chart Helm. Les services Kubernetes sont créés par Helm, pas par des manifests kubectl séparés.
 
-le backend expose déjà Actuator mais sans endpoint Prometheus. 
---> compléter le stack local avec les services Docker, la configuration de scrape et le point d’exposition des métriques.
-Modifications principales
-Activation des métriques Spring Boot Prometheus dans pom.xml et application.properties
-Ajout des services localement dans docker-compose.yml
-Ajout de la config Prometheus dans prometheus.yml
-Ajout du datasource Grafana dans datasource.yml
-Ajout d’un dashboard local dans backend-overview.json
-Documentation mise à jour dans README.md
+Pour le front de l’application, on utilise l’Ingress Minikube, qui est plus propre que de faire un port-forward en permanence.
 
-Démarrage
-docker-compose up -d db backend frontend prometheus grafana
+```bash
+minikube start
+minikube addons enable ingress
+MINIKUBE_IP=$(minikube ip)
+echo "$MINIKUBE_IP personnes.local" | sudo tee -a /etc/hosts
+
+helm upgrade --install personnes ./helm/personnes \
+  -n personnes --create-namespace \
+  --set postgres.auth.password='bassem!!!2026'
+
+kubectl -n personnes get pods -w
+```
+
+Accès dans le navigateur :
+- Frontend : http://personnes.local
+- Prometheus : http://localhost:9090 (via port-forward si besoin)
+- Grafana : http://localhost:3001 (via port-forward si besoin)
+  - login : admin
+  - mot de passe : admin
+
+Si l’on veut regarder aussi les services de monitoring sans Ingress dédié :
+
+```bash
+kubectl -n personnes port-forward svc/prometheus 9090:9090
+kubectl -n personnes port-forward svc/grafana 3001:3000
+```
+
+Le chart Helm inclut l’application complète, PostgreSQL, Prometheus et Grafana pour un déploiement local sur Minikube, avec l’Ingress pour le frontend et le port-forward uniquement pour les outils de monitoring.
+
+> En local, `minikube ip` est la bonne clé pour faire pointer `personnes.local` vers l’Ingress. Le port-forward reste utile pour Prometheus et Grafana, mais le front principal doit passer par l’Ingress.
 
 
 

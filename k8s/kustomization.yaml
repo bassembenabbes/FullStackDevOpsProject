@@ -6,6 +6,8 @@ resources:
   - postgres.yaml
   - backend.yaml
   - frontend.yaml
+  - prometheus.yaml
+  - grafana.yaml
   - ingress.yaml
 # Pour utiliser les images publiées par la CI :
 # images:

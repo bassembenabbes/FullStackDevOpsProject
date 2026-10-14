@@ -13,16 +13,17 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
+      "description": "Utilisation CPU du backend",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": { "mode": "thresholds" },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] },
-          "unit": "reqps"
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 80 } ] },
+          "unit": "percentunit"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 0 },
       "id": 1,
       "options": {
         "colorMode": "background",
@@ -35,12 +36,12 @@
       },
       "targets": [
         {
-          "expr": "rate(http_server_requests_seconds_count{application=\"personnes-backend\"}[1m])",
-          "legendFormat": "requests / s",
+          "expr": "100 * process_cpu_usage{application=\"personnes\"}",
+          "legendFormat": "CPU",
           "refId": "A"
         }
       ],
-      "title": "Requêtes HTTP / seconde",
+      "title": "CPU usage",
       "type": "stat"
     },
     {
@@ -48,29 +49,174 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
+      "description": "Mémoire heap utilisée par le backend",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 250 }, { "color": "red", "value": 500 } ] },
+          "unit": "decmbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(jvm_memory_used_bytes{application=\"personnes\",area=\"heap\"}) / 1024 / 1024",
+          "legendFormat": "RAM",
+          "refId": "A"
+        }
+      ],
+      "title": "Memory usage",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "description": "Requêtes HTTP entrantes par seconde",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
           "mappings": [],
           "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application=\"personnes\"}[1m]))",
+          "legendFormat": "req/s",
+          "refId": "A"
+        }
+      ],
+      "title": "Request rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "description": "Latence p95 du backend",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 1 } ] },
           "unit": "s"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "id": 2,
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_sum{application=\"personnes\"}[5m])) / sum(rate(http_server_requests_seconds_count{application=\"personnes\"}[5m]))",
+          "legendFormat": "avg latency",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg latency",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "description": "Temps de fonctionnement du backend",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] },
+          "unit": "h"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "id": 5,
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom" },
         "tooltip": { "mode": "single", "sort": "none" }
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{application=\"personnes-backend\"}[5m])))",
-          "legendFormat": "p95",
+          "expr": "process_uptime_seconds{application=\"personnes\"} / 3600",
+          "legendFormat": "uptime (h)",
           "refId": "A"
         }
       ],
-      "title": "Temps de réponse p95",
+      "title": "Service uptime",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "description": "État du backend et vérifications de santé",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": 0 }, { "color": "green", "value": 1 } ] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "id": 6,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [
+        {
+          "expr": "up{job=\"spring-boot-backend\"}",
+          "legendFormat": "backend up",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application=\"personnes\",uri=\"/actuator/health/**\",status=~\"2..\"}[5m]))",
+          "legendFormat": "health checks / min",
+          "refId": "B"
+        }
+      ],
+      "title": "Health status",
       "type": "timeseries"
     }
   ],
