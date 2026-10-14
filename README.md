@@ -372,7 +372,10 @@ git commit -m "ci: build, push ECR et déploiement ECS"
 git push origin main
 
 # 4. Test. 
-Modifiez un texte de l’interface (par exemple le titre « Personnes » dans App.jsx), poussez, puis rechargez l’URL de l’ALB après la fin du pipeline.
+Modifiez un texte de l’interface (par exemple le titre « Personnes » dans App.jsx), 
+poussez, puis rechargez l’URL de l’ALB après la fin du pipeline.
+
+terraform destroy
 
 # À savoir
 - Région et noms : le workflow suppose us-east-1 (celle de votre console), le cluster personnes et le load balancer personnes-alb. Modifiez le bloc env: en haut du fichier si besoin.
