@@ -1,19 +1,20 @@
-name: CI
+name: CI/CD
 
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
 
 env:
-  # Dossier du projet dans le dépôt : "." si le dépôt contient directement backend/ et frontend/
-  # Sinon, mettre le sous-dossier, ex. "gestion-personnes"
-  PROJECT_DIR: .
+  PROJECT_DIR: .               # "." si backend/ frontend/ helm/ sont a la racine du depot
+  AWS_REGION: us-east-1
+  ECS_CLUSTER: personnes
+  # Build + push + deploiement uniquement sur un push vers main
+  IS_DEPLOY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
 jobs:
   backend:
-    name: Backend (tests unitaires + intégration)
+    name: Backend (tests unitaires + integration)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +24,6 @@ jobs:
           java-version: "17"
           cache: maven
           cache-dependency-path: ${{ env.PROJECT_DIR }}/backend/pom.xml
-      # Docker est préinstallé sur ubuntu-latest : Testcontainers y lance PostgreSQL
       - name: mvn verify
         run: mvn -B -f "$PROJECT_DIR/backend/pom.xml" verify
       - name: Rapports de tests
@@ -47,44 +47,83 @@ jobs:
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
           npm run build
 
-  docker:
-    name: Image ${{ matrix.service }}
-    needs: [backend, frontend]
+  helm:
+    name: Chart Helm (lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint "$PROJECT_DIR/helm/personnes"
+      - run: helm template personnes "$PROJECT_DIR/helm/personnes" -n personnes > /dev/null
+
+  images:
+    name: Image ${{ matrix.service }} (build + push ECR)
+    needs: [backend, frontend, helm]
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      id-token: write           # necessaire a l'authentification OIDC
     strategy:
       matrix:
         service: [backend, frontend]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Authentification AWS (OIDC)
+        if: env.IS_DEPLOY == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Connexion a ECR
+        id: ecr
+        if: env.IS_DEPLOY == 'true'
+        uses: aws-actions/amazon-ecr-login@v2
+
       - uses: docker/setup-buildx-action@v3
 
-      - name: Connexion à GHCR
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Métadonnées (tags)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/personnes-${{ matrix.service }}
-          tags: |
-            type=sha
-            type=ref,event=tag
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build et push
+      - name: Build (et push sur main)
         uses: docker/build-push-action@v6
         with:
           context: ${{ env.PROJECT_DIR }}/${{ matrix.service }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          push: ${{ env.IS_DEPLOY == 'true' }}
+          tags: |
+            ${{ steps.ecr.outputs.registry || 'local' }}/personnes-${{ matrix.service }}:${{ github.sha }}
+            ${{ steps.ecr.outputs.registry || 'local' }}/personnes-${{ matrix.service }}:latest
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  deploy:
+    name: Deploiement ECS
+    needs: images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-aws
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Authentification AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Redeployer les services (nouvelle image :latest)
+        run: |
+          for svc in backend frontend; do
+            aws ecs update-service --cluster "$ECS_CLUSTER" --service "$svc" \
+              --force-new-deployment --no-cli-pager > /dev/null
+          done
+
+      - name: Attendre la stabilite des services
+        run: aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services backend frontend
+
+      - name: URL de l'application
+        run: |
+          DNS=$(aws elbv2 describe-load-balancers --names personnes-alb \
+            --query 'LoadBalancers[0].DNSName' --output text)
+          echo "### Deploye : http://$DNS" >> "$GITHUB_STEP_SUMMARY"

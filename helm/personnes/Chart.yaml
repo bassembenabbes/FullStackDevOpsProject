@@ -1,0 +1,6 @@
+apiVersion: v2
+name: personnes
+description: Gestion des personnes (React + Spring Boot + PostgreSQL)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

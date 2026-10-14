@@ -1,0 +1,17 @@
+Release "{{ .Release.Name }}" déployée dans le namespace "{{ .Release.Namespace }}".
+
+Suivre le démarrage :
+  kubectl -n {{ .Release.Namespace }} get pods -w
+
+{{- if .Values.ingress.enabled }}
+
+Application : http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}
+(ajouter "<ip-ingress> {{ .Values.ingress.host }}" à /etc/hosts ; minikube : `minikube ip`)
+{{- end }}
+
+Sans Ingress :
+  kubectl -n {{ .Release.Namespace }} port-forward svc/frontend 3000:80   # http://localhost:3000
+{{- if and (not .Values.postgres.auth.existingSecret) (eq .Values.postgres.auth.password "change-me") }}
+
+ATTENTION : mot de passe PostgreSQL par défaut. Utilisez --set postgres.auth.password=...
+{{- end }}

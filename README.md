@@ -181,7 +181,8 @@ kubectl -n personnes get pods -w
 
 Vos pods devraient maintenant télécharger les images depuis GHCR. : GitHub Container Registry 
 
-Etape 4/10 : 14/10/2026 de 08:00-->
+Etape 4/10 : 14/10/2026 de 08:00-->11:30
+
 Iac avec AWS : https://577211136035.signin.aws.amazon.com/console
 
 Étape  					Dans le projet
@@ -225,32 +226,49 @@ REGION=$(echo $BACK | cut -d. -f4)        # us-east-1 chez vous
     terraform output app_url        # ouvrir cette URL publique de l'application
     
     http://personnes-alb-1488586856.us-east-1.elb.amazonaws.com
+    
+correction Frontend: 
+cd terraform
+FRONT=$(terraform output -raw ecr_frontend_url)
+docker build -t $FRONT:latest ../frontend && docker push $FRONT:latest
+aws ecs update-service --cluster personnes --service frontend --force-new-deployment --region us-east-1
 
-Logs : CloudWatch, groupes `/ecs/personnes-backend` et `/ecs/personnes-frontend`.
+
+La base se trouve dans les sous-réseaux personnes-private-0 et personnes-private-1. 
+Ils sont rattachés à la table de routage principale, qui ne contient que la route locale du VPC, sans passerelle Internet. 
+Les sous-réseaux publics passent par personnes-public-rt et personnes-igw. 
+Résultat : la base est invisible depuis Internet, et seul le Security Group des tâches ECS peut la contacter sur le port 5432.
+
+Interroger la base directement
+La base étant privée, DBeaver ou psql depuis votre PC ne peuvent pas s’y connecter. 
+Les solutions possibles :
+- Passer par l’application : c’est ce que vous faites déjà, et c’est suffisant pour ce cours.
+- ECS Exec ou un hôte temporaire (bastion) dans le VPC : possible, mais cela demande une configuration supplémentaire.
+- RDS Query Editor : non disponible pour RDS PostgreSQL classique.
+
+
+cd terraform
+terraform destroy -var desired_count=0
+
+Cela supprime tout, y compris la base et ses données. Vous pourrez tout recréer en quelques minutes avec terraform apply.
 
 
 Choix à connaître
-Pas de NAT Gateway : cela économise environ 32 $/mois. Les tâches ont une IP publique, mais leur Security Group n’accepte que le load balancer. La base reste privée.
+Pas de NAT Gateway : cela économise environ 32 $/mois.
+Les tâches ont une IP publique, mais leur Security Group n’accepte que le load balancer.
+La base reste privée.
 Service Connect : le frontend joint le backend sous le nom backend:8080, comme dans Docker Compose et Kubernetes. Le nginx.conf ne change donc pas.
 Région : eu-west-3 (Paris), modifiable dans variables.tf.
 Coûts : l’ALB et RDS sont facturés à l’heure. Faites terraform destroy -var desired_count=0 quand vous avez fini de vous entraîner.
 Mot de passe : il apparaît dans le fichier d’état terraform.tfstate, qui ne doit pas être commité (le .gitignore fourni l’exclut).
 
-Suite du plan
-
- il reste :
-
-CI/CD vers AWS : build et push des images vers ECR, puis déploiement sur ECS avec GitHub Actions.
-EKS (option avancée) : il réutiliserait votre chart Helm.
-Validation locale : un job CI avec Minikube et Helm, qui teste l’installation du chart avant le passage au cloud.
-
-
-
-
-
-Etape 10/10 : 
+## Etape 5/10 : 14/10/2026 de 11:30---> 12:45
 chart Helm :
-Le chart reprend les manifestes de k8s/ sous forme de templates : le Secret PostgreSQL, le PVC, les Deployments et Services de PostgreSQL, du backend et du frontend, puis l’Ingress. Tout se règle dans values.yaml.
+Le chart reprend les manifestes de k8s/ sous forme de templates : le Secret PostgreSQL, le PVC, les Deployments et Services de PostgreSQL, du backend et du frontend, puis l’Ingress. 
+Tout se règle dans values.yaml.
+
+---------------------------------------------------------------------------------------------------------------------
+
 Installation
 # 1. Vérifier le chart
 helm lint helm/personnes
@@ -262,34 +280,114 @@ kubectl delete -k k8s
 # 3. Installer (images locales déjà chargées dans minikube/kind)
 helm upgrade --install personnes ./helm/personnes \
   -n personnes --create-namespace \
-  --set postgres.auth.password='MotDePasseSolide'
+  --set postgres.auth.password='bassem!!!2026'
 
 kubectl -n personnes get pods -w
 
-
-
-
+L’application est ensuite sur http://personnes.local
+avec <minikube ip> personnes.local ajouté à /etc/hosts. 
+Sans Ingress, utilisez kubectl -n personnes port-forward svc/frontend 3000:80.
 
 Avec les images publiées par la CI (GHCR):
 
 helm upgrade --install personnes ./helm/personnes -n personnes --create-namespace \
-  --set backend.image.repository=ghcr.io/VOTRE_COMPTE/personnes-backend \
+  --set backend.image.repository=ghcr.io/bassembenabbes/personnes-backend \
   --set backend.image.tag=latest \
-  --set frontend.image.repository=ghcr.io/VOTRE_COMPTE/personnes-frontend \
+  --set frontend.image.repository=ghcr.io/bassembenabbes/personnes-frontend \
   --set frontend.image.tag=latest \
-  --set postgres.auth.password='MotDePasseSolide'
+  --set postgres.auth.password='bassem!!!2026'
+
+---------------------------------------------------------------------------------------------------------------------
+Si les images sont privées, créez un secret ghcr-pull et ajoutez --set 'imagePullSecrets[0].name=ghcr-pull'.
+
+Ce qui change par rapport à k8s/
+Mot de passe : il se passe en paramètre (--set) ou via un secret existant (postgres.auth.existingSecret). Il n’est plus écrit en dur dans un fichier commité.
+Redéploiement automatique : un changement de secret redémarre le backend et PostgreSQL, grâce à une annotation checksum.
+Base externe : avec postgres.enabled=false et externalDatabase.url=jdbc:..., le chart n’installe plus PostgreSQL.
+Ingress : le TLS, l’hôte et les annotations sont réglables.
+
+Limite à connaître
+
+Les services s’appellent toujours backend, frontend et postgres, car nginx.conf relaie /api vers http://backend:8080.
+Il faut donc une seule release par namespace. 
+Pour plusieurs environnements (dev, prod), utilisez un namespace par environnement.
+
+
+## Etape 6/10 : 14/10/2026 de 13:00 -->
+Suite du plan
+Il reste deux parties :
+
+A- CI/CD vers AWS : GitHub Actions construit les images, les pousse (build et push des images) dans ECR, puis déploiement sur ECS avec GitHub Actions (met à jour les services ECS).
+ Plus besoin de docker build, docker push et aws ecs update-service à la main.
+ ------------------------------------
+ terraform/oidc.tf donne à GitHub le droit de déployer sur AWS.
+.github/workflows/ci.yml remplace votre ancien ci.yml
+
+# Fonctionnement
+Sur un push vers main, le pipeline enchaîne :
+1- Tests : les tests backend (unitaires et Testcontainers), le build du frontend et le lint Helm, en parallèle.
+2- Images : build du backend et du frontend, puis push dans ECR avec deux tags : latest et le hash du commit (github.sha), pour savoir quelle version tourne.
+3- Déploiement : mise à jour des services ECS, attente qu’ils soient stables, puis affichage de l’URL dans le résumé du job.
+Sur une pull request, seuls les tests et le build s’exécutent : ni push ni déploiement.
+
+# Sécurité : OIDC, pas de clés AWS
+Aucune clé AWS n’est stockée dans GitHub. 
+Le workflow demande à AWS un accès temporaire, et le rôle IAM personnes-github-deploy n’accepte que la branche main de votre dépôt. 
+Ses droits se limitent à pousser dans vos 2 dépôts ECR et à redéployer vos 2 services ECS.
+
+# Mise en place
+# 1. Terraform. Créez ou complétez terraform/terraform.tfvars (déjà exclu de Git) :
+cd terraform
+nano terraform.tfvars
+:
+region        = "us-east-1"
+desired_count = 1
+github_repo = "bassembenabbes/FullStackDevOpsProject"
+
+cd terraform
+
+terraform init
+terraform apply
+terraform output github_role_arn
+
+terraform output app_url  
+
+Mettez bien desired_count = 1 dans ce fichier : sans lui, un terraform apply remet les services à 0 tâche et coupe l’application. 
+Si Terraform répond EntityAlreadyExists pour le fournisseur OIDC, ajoutez create_github_oidc_provider = false dans le fichier.
+
+Erreur possible
+
+EntityAlreadyExists sur aws_iam_openid_connect_provider signifie qu’un fournisseur GitHub existe déjà dans votre compte AWS. Ajoutez dans terraform.tfvars :
+create_github_oidc_provider = false
+
+
+# 2. Secret GitHub. 
+Dans le dépôt, allez dans Settings → Secrets and variables → Actions → New repository secret. 
+Créez AWS_ROLE_ARN avec la valeur de github_role_arn.
+
+# 3. Premier déploiement.
+git add .github terraform/oidc.tf
+git commit -m "ci: build, push ECR et déploiement ECS"
+git push origin main
+
+# 4. Test. 
+Modifiez un texte de l’interface (par exemple le titre « Personnes » dans App.jsx), poussez, puis rechargez l’URL de l’ALB après la fin du pipeline.
+
+# À savoir
+- Région et noms : le workflow suppose us-east-1 (celle de votre console), le cluster personnes et le load balancer personnes-alb. Modifiez le bloc env: en haut du fichier si besoin.
+- Tag latest : les task definitions restent gérées par Terraform et pointent vers :latest, et la CI force un redéploiement. Cela évite que Terraform et la CI se contredisent. Pour de la production, on utiliserait des tags immuables avec une nouvelle révision de task definition à chaque déploiement.
+- GHCR : l’ancien job qui poussait vers GHCR a disparu. Les images vont maintenant uniquement dans ECR, ce qui est ce dont ECS a besoin.
+- Échec : si un déploiement ne devient jamais sain, le job échoue après environ 10 minutes. Consultez alors les logs CloudWatch /ecs/personnes-backend et /ecs/personnes-frontend.
+
+ ------------------------------------
+
+B- Validation locale avec Minikube : un job CI qui installe votre chart Helm sur un Minikube temporaire et vérifie que l’application répond avant tout déploiement cloud.
+
+C- EKS (option avancée) : il réutiliserait votre chart Helm.
 
 
 
 
+Logs : CloudWatch, groupes `/ecs/personnes-backend` et `/ecs/personnes-frontend`.
 
 
-
-
-
-
-
-
-         
-  
-  
