@@ -147,7 +147,7 @@ kubectl -n personnes get pods
 kubectl -n personnes get svc
 kubectl -n personnes get ingress
 
-Pipeline CI/CD : build, tests et push des images, avec GitHub Actions.
+Pipeline CI/CD : build, tests et push des images, avec  GitHub Actions.
 ## 4. CI/CD (GitHub Actions)
 `.github/workflows/ci.yml` : tests backend, build frontend, puis build/push des images
 `ghcr.io/<compte>/personnes-backend` et `personnes-frontend` (push uniquement sur main et tags `v*`).
@@ -313,7 +313,7 @@ Il faut donc une seule release par namespace.
 Pour plusieurs environnements (dev, prod), utilisez un namespace par environnement.
 
 
-## Etape 6/10 : 14/10/2026 de 13:00 -->
+## Etape 6/10 : 14/10/2026 de 13:00 -->15:00
 Suite du plan
 Il reste deux parties :
 
@@ -344,6 +344,10 @@ region        = "us-east-1"
 desired_count = 1
 github_repo = "bassembenabbes/FullStackDevOpsProject"
 
+------------
+*-.-.-*-.-.-*
+------------
+
 cd terraform
 
 terraform init
@@ -351,7 +355,7 @@ terraform plan
 terraform apply
 terraform output github_role_arn
 
-terraform output app_url  
+terraform output app_url
 
 Mettez bien desired_count = 1 dans ce fichier : sans lui, un terraform apply remet les services à 0 tâche et coupe l’application. 
 Si Terraform répond EntityAlreadyExists pour le fournisseur OIDC, ajoutez create_github_oidc_provider = false dans le fichier.

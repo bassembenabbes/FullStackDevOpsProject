@@ -64,7 +64,7 @@ export default function App() {
     <div className="page">
       <header className="topbar">
         <div>
-          <h1>Gestion des Personnes avec Bassem & K8s & AWS & Iac</h1>
+          <h1>Gestion des Personnes avec workflow GitHub Actions & K8s & AWS & Iac</h1>
           <p className="muted">{rows.length} enregistrement{rows.length > 1 ? "s" : ""}</p>
         </div>
         <button className="btn primary" onClick={() => setForm({ person: null })}>Ajouter une personne</button>
