@@ -3,10 +3,11 @@ resource "aws_ecs_cluster" "main" {
   name = var.project
 }
 
-# Service Connect : le frontend joint le backend sous le nom "backend:8080"
-# (identique a docker-compose et Kubernetes, donc nginx.conf ne change pas)
-resource "aws_service_discovery_http_namespace" "main" {
+# Service Connect : les services s'exposent dans le namespace DNS privé du VPC
+# pour permettre la résolution interne backend.personnes, prometheus.personnes, etc.
+resource "aws_service_discovery_private_dns_namespace" "main" {
   name = var.project
+  vpc  = aws_vpc.main.id
 }
 
 resource "aws_cloudwatch_log_group" "backend" {
@@ -129,7 +130,7 @@ resource "aws_ecs_service" "backend" {
 
   service_connect_configuration {
     enabled   = true
-    namespace = aws_service_discovery_http_namespace.main.arn
+    namespace = aws_service_discovery_private_dns_namespace.main.name
     service {
       port_name      = "http"
       discovery_name = "backend"
@@ -159,7 +160,7 @@ resource "aws_ecs_service" "frontend" {
 
   service_connect_configuration {
     enabled   = true # client uniquement
-    namespace = aws_service_discovery_http_namespace.main.arn
+    namespace = aws_service_discovery_private_dns_namespace.main.name
   }
 
   load_balancer {

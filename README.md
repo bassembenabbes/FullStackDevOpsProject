@@ -542,4 +542,14 @@ Le chart Helm inclut l’application complète, PostgreSQL, Prometheus et Grafan
 
 
 
+cd terraform
+terraform fmt
+terraform init
+terraform plan
+terraform apply
+terraform apply -auto-approve
+terraform output github_role_arn
 
+terraform output app_url
+
+terraform output -raw grafana_url

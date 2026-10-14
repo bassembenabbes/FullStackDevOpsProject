@@ -421,7 +421,7 @@ resource "aws_ecs_service" "prometheus" {
 
   service_connect_configuration {
     enabled   = true
-    namespace = aws_service_discovery_http_namespace.main.arn
+    namespace = aws_service_discovery_private_dns_namespace.main.name
     service {
       port_name      = "http"
       discovery_name = "prometheus"
@@ -456,7 +456,7 @@ resource "aws_ecs_service" "grafana" {
 
   service_connect_configuration {
     enabled   = true
-    namespace = aws_service_discovery_http_namespace.main.arn
+    namespace = aws_service_discovery_private_dns_namespace.main.name
     service {
       port_name      = "http"
       discovery_name = "grafana"
