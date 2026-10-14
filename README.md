@@ -181,9 +181,115 @@ kubectl -n personnes get pods -w
 
 Vos pods devraient maintenant télécharger les images depuis GHCR. : GitHub Container Registry 
 
+Etape 4/10 : 14/10/2026 de 08:00-->
+Iac avec AWS : https://577211136035.signin.aws.amazon.com/console
+
+Étape  					Dans le projet
+Réseau (VPC, Subnets)			network.tf : VPC, 2 sous-réseaux publics (ALB et tâches), 2 sous-réseaux privés (base de données)
+Sécurité (Security Groups)		security.tf : Internet → ALB → tâches ECS → RDS, chaque maillon n’accepte que le précédent
+Compute					ecs.tf : ECS Fargate, avec les images dans ECR (ecr.tf)
+Base de données				rds.tf : PostgreSQL 17 géré par AWS, mot de passe généré et stocké dans Secrets Manager
+Entrée publique				alb.tf : load balancer HTTP vers le frontend Nginx
+
+J’ai choisi ECS plutôt qu’EC2 ou EKS : c’est le plus simple.
+
+Initialisation, planification, création
+cd terraform
+aws configure                      # clés d'un utilisateur IAM
+terraform init
+terraform validate
+terraform plan -out tfplan
+terraform apply tfplan
 
 
-         
+Le premier apply crée tout avec 0 tâche : les images n’existent pas encore dans ECR. 
+Ensuite :
+
+## . Pousser les images dans ECR
+Depuis le dossier terraform/ :
+
+REGION=$(echo $BACK | cut -d. -f4)        # us-east-1 chez vous
+
+    REGION=us-east-1
+    BACK=$(terraform output -raw ecr_backend_url)
+    FRONT=$(terraform output -raw ecr_frontend_url)
+    
+    aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin ${BACK%%/*}
+    
+    docker build -t $BACK:latest  ../backend  && docker push $BACK:latest
+    docker build -t $FRONT:latest ../frontend && docker push $FRONT:latest
+    
+    
+## . Demarrer l'application
+    terraform apply -var desired_count=1
+    terraform output app_url        # ouvrir cette URL publique de l'application
+    
+    http://personnes-alb-1488586856.us-east-1.elb.amazonaws.com
+
+Logs : CloudWatch, groupes `/ecs/personnes-backend` et `/ecs/personnes-frontend`.
+
+
+Choix à connaître
+Pas de NAT Gateway : cela économise environ 32 $/mois. Les tâches ont une IP publique, mais leur Security Group n’accepte que le load balancer. La base reste privée.
+Service Connect : le frontend joint le backend sous le nom backend:8080, comme dans Docker Compose et Kubernetes. Le nginx.conf ne change donc pas.
+Région : eu-west-3 (Paris), modifiable dans variables.tf.
+Coûts : l’ALB et RDS sont facturés à l’heure. Faites terraform destroy -var desired_count=0 quand vous avez fini de vous entraîner.
+Mot de passe : il apparaît dans le fichier d’état terraform.tfstate, qui ne doit pas être commité (le .gitignore fourni l’exclut).
+
+Suite du plan
+
+ il reste :
+
+CI/CD vers AWS : build et push des images vers ECR, puis déploiement sur ECS avec GitHub Actions.
+EKS (option avancée) : il réutiliserait votre chart Helm.
+Validation locale : un job CI avec Minikube et Helm, qui teste l’installation du chart avant le passage au cloud.
+
+
+
+
+
+Etape 10/10 : 
+chart Helm :
+Le chart reprend les manifestes de k8s/ sous forme de templates : le Secret PostgreSQL, le PVC, les Deployments et Services de PostgreSQL, du backend et du frontend, puis l’Ingress. Tout se règle dans values.yaml.
+Installation
+# 1. Vérifier le chart
+helm lint helm/personnes
+helm template personnes helm/personnes -n personnes | less
+
+# 2. Si vous aviez déployé k8s/ avec kubectl, le retirer d'abord
+kubectl delete -k k8s
+
+# 3. Installer (images locales déjà chargées dans minikube/kind)
+helm upgrade --install personnes ./helm/personnes \
+  -n personnes --create-namespace \
+  --set postgres.auth.password='MotDePasseSolide'
+
+kubectl -n personnes get pods -w
+
+
+
+
+
+Avec les images publiées par la CI (GHCR):
+
+helm upgrade --install personnes ./helm/personnes -n personnes --create-namespace \
+  --set backend.image.repository=ghcr.io/VOTRE_COMPTE/personnes-backend \
+  --set backend.image.tag=latest \
+  --set frontend.image.repository=ghcr.io/VOTRE_COMPTE/personnes-frontend \
+  --set frontend.image.tag=latest \
+  --set postgres.auth.password='MotDePasseSolide'
+
+
+
+
+
+
+
+
+
+
+
+
          
   
   
