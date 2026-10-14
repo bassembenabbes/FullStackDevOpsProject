@@ -40,10 +40,13 @@ data "aws_iam_policy_document" "github_assume" {
       values   = ["sts.amazonaws.com"]
     }
     # Seule la branche main de CE depot peut prendre ce role
-    condition {
+        condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:ref:refs/heads/main"]
+      values = [
+        "repo:${var.github_repo}:ref:refs/heads/main",
+        "repo:bassembenabbes@26434677/FullStackDevOpsProject@1417582840:ref:refs/heads/main",
+      ]
     }
   }
 }

@@ -347,6 +347,7 @@ github_repo = "bassembenabbes/FullStackDevOpsProject"
 cd terraform
 
 terraform init
+terraform plan
 terraform apply
 terraform output github_role_arn
 
