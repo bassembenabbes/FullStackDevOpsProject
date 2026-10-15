@@ -536,12 +536,6 @@ Le chart Helm inclut l’application complète, PostgreSQL, Prometheus et Grafan
 
 
 
-
-
-
-
-
-
 cd terraform
 terraform fmt
 terraform init
@@ -554,3 +548,5 @@ terraform output github_role_arn
 terraform output app_url
 
 terraform output -raw grafana_url
+
+terraform destroy -var desired_count=0

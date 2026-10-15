@@ -1,4 +1,44 @@
 # ---------- Monitoring stack : Prometheus + Grafana sur ECS Fargate ----------
+
+variable "admin_cidr" {
+  type        = string
+  default     = "0.0.0.0/0"
+  description = "IP autorisee a ouvrir Grafana, ex. 1.2.3.4/32 (0.0.0.0/0 = tout Internet)"
+}
+
+# ---------- Mot de passe admin Grafana (Secrets Manager) ----------
+resource "random_password" "grafana" {
+  length  = 20
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "grafana_admin" {
+  name                    = "${var.project}/grafana-admin-password"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "grafana_admin" {
+  secret_id     = aws_secretsmanager_secret.grafana_admin.id
+  secret_string = random_password.grafana.result
+}
+
+resource "aws_iam_role_policy" "read_grafana_secret" {
+  name = "read-grafana-secret"
+  role = aws_iam_role.execution.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = [aws_secretsmanager_secret.grafana_admin.arn]
+    }]
+  })
+}
+
+output "grafana_password_command" {
+  value = "aws secretsmanager get-secret-value --secret-id ${aws_secretsmanager_secret.grafana_admin.name} --region ${var.region} --query SecretString --output text"
+}
+
 resource "aws_security_group" "monitoring" {
   name        = "${var.project}-monitoring"
   description = "Prometheus and Grafana access"
@@ -13,11 +53,11 @@ resource "aws_security_group" "monitoring" {
   }
 
   ingress {
-    description = "Prometheus UI"
+    description = "Grafana vers Prometheus"
     from_port   = 9090
     to_port     = 9090
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    self        = true
   }
 
   egress {
@@ -38,7 +78,7 @@ resource "aws_security_group" "grafana_alb" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.admin_cidr]
   }
 
   egress {
@@ -89,7 +129,7 @@ resource "aws_ecs_task_definition" "prometheus" {
           - job_name: 'spring-boot-backend'
             metrics_path: /actuator/prometheus
             static_configs:
-              - targets: ['backend.personnes:8080']
+              - targets: ['backend:8080']
                 labels:
                   application: 'personnes'
         CFG
@@ -133,8 +173,10 @@ resource "aws_ecs_task_definition" "grafana" {
       }]
       environment = [
         { name = "GF_SECURITY_ADMIN_USER", value = "admin" },
-        { name = "GF_SECURITY_ADMIN_PASSWORD", value = "admin" },
         { name = "GF_USERS_ALLOW_SIGN_UP", value = "false" }
+      ]
+      secrets = [
+        { name = "GF_SECURITY_ADMIN_PASSWORD", valueFrom = aws_secretsmanager_secret.grafana_admin.arn }
       ]
       entryPoint = ["sh", "-c"]
       command = [<<-EOT
@@ -145,9 +187,10 @@ resource "aws_ecs_task_definition" "grafana" {
 
         datasources:
           - name: Prometheus
+            uid: PBFA97CFB590B2093
             type: prometheus
             access: proxy
-            url: http://prometheus.personnes:9090
+            url: http://prometheus:9090
             isDefault: true
             editable: false
         DATASOURCE
