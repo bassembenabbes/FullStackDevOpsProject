@@ -550,6 +550,7 @@ terraform apply
 terraform apply -auto-approve
 terraform output github_role_arn
 
+
 terraform output app_url
 
 terraform output -raw grafana_url
