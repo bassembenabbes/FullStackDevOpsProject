@@ -279,7 +279,8 @@ git commit -m "Add AWS monitoring stack"
 git push origin main
 ```
 
-Le workflow `.github/workflows/deploy-monitoring.yml` se déclenche sur `main` pour appliquer la configuration Terraform et créer les services ECS `prometheus` et `grafana`.
+Le workflow `.github/workflows/deploy-monitoring.yml` se déclenche sur `main`
+ pour appliquer la configuration Terraform et créer les services ECS `prometheus` et `grafana`.
 
 ### Vérifier les services ECS
 ```bash
@@ -468,12 +469,15 @@ terraform destroy
 # À savoir
 - Région et noms : le workflow suppose us-east-1 (celle de votre console), le cluster personnes et le load balancer personnes-alb. Modifiez le bloc env: en haut du fichier si besoin.
 - Tag latest : les task definitions restent gérées par Terraform et pointent vers :latest, et la CI force un redéploiement. Cela évite que Terraform et la CI se contredisent. Pour de la production, on utiliserait des tags immuables avec une nouvelle révision de task definition à chaque déploiement.
-- GHCR : l’ancien job qui poussait vers GHCR a disparu. Les images vont maintenant uniquement dans ECR, ce qui est ce dont ECS a besoin.
-- Échec : si un déploiement ne devient jamais sain, le job échoue après environ 10 minutes. Consultez alors les logs CloudWatch /ecs/personnes-backend et /ecs/personnes-frontend.
+- GHCR : l’ancien job qui poussait vers GHCR a disparu. Les images vont maintenant uniquement dans ECR, 
+ce qui est ce dont ECS a besoin.
+- Échec : si un déploiement ne devient jamais sain, le job échoue après environ 10 minutes.
+ Consultez alors les logs CloudWatch /ecs/personnes-backend et /ecs/personnes-frontend.
 
  ------------------------------------
 
-B- Validation locale avec Minikube : un job CI qui installe votre chart Helm sur un Minikube temporaire et vérifie que l’application répond avant tout déploiement cloud.
+B- Validation locale avec Minikube : un job CI qui installe votre chart Helm sur un Minikube temporaire 
+et vérifie que l’application répond avant tout déploiement cloud.
 
 C- EKS (option avancée) : il réutiliserait votre chart Helm.
 

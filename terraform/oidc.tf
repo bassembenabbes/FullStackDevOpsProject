@@ -1,6 +1,7 @@
 # ---------- Acces de GitHub Actions a AWS via OIDC (aucune cle AWS stockee dans GitHub) ----------
 variable "github_repo" {
   type        = string
+  default = "bassembenabbes/FullStackDevOpsProject"
   description = "Depot GitHub autorise a deployer, au format compte/depot"
 }
 
