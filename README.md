@@ -1,552 +1,592 @@
 # Gestion des personnes
 
-Etape 1/10 : 13/10/2026 de 17:00 à 17:40
+Créer une présentation correspondant à la cretion de projet Full Stack React Sprong Boot JAva & DevOps avec K8s & AWS
 
-CRUD : React (Vite) + Spring Boot (Java 17, Maven) + PostgreSQL.
+## 1. Vue d’ensemble
 
-## Lancer
-1. Base de données : `docker compose up -d`
-2. Backend : `cd backend && mvn spring-boot:run`  (http://localhost:8080)
-3. Frontend : `cd frontend && npm install && npm run dev`  (http://localhost:5173)
+Cette application est une solution de gestion de catalogue de personnes, conçue comme un projet complet de développement logiciel et d’architecture DevOps. Elle permet de créer, consulter, modifier et supprimer des enregistrements dans une base de données relationnelle, via une interface web moderne et une API REST robuste.
 
-## API
-| Méthode | URL | Description |
+Le projet illustre un cycle de vie complet :
+- développement applicatif,
+- conteneurisation,
+- orchestration Kubernetes,
+- déploiement cloud sur AWS,
+- surveillance applicative,
+- automatisation CI/CD avec GitHub Actions,
+- infrastructure as code avec Terraform.
+
+### Valeur métier
+
+Dans un contexte réel, cette application peut servir à :
+- gérer un annuaire de clients, employés, partenaires ou contacts,
+- centraliser les informations de base dans une source unique,
+- réduire les erreurs de saisie grâce à des validations métier,
+- offrir un accès simple et fiable à l’information via une interface ergonomique.
+
+### Objectif fonctionnel
+
+L’application permet de gérer des personnes avec les règles métier suivantes :
+- chaque personne a un code unique,
+- chaque personne a un nom obligatoire,
+- le CIN est obligatoire et doit contenir exactement 8 chiffres,
+- un code ou un CIN déjà existant est rejeté,
+- la recherche permet de filtrer rapidement les personnes par code, nom ou CIN.
+
+---
+
+## 2. Architecture du projet
+
+### Vue logique
+
+L’application repose sur une architecture standard 3-tiers :
+
+1. Couche Frontend
+   - React + Vite
+   - Interface utilisateur pour gérer les personnes
+   - Consommation de l’API backend
+
+2. Couche Backend
+   - Spring Boot 3.5
+   - Java 17
+   - API REST expose les services CRUD
+   - Validation des données et gestion des erreurs métier
+
+3. Couche Persistante
+   - PostgreSQL 17
+   - Stockage des données de l’application
+
+### Vue technique
+
+```text
+Client navigateur
+       |
+       v
+Frontend (React + Vite)
+       |
+       | HTTP /api/personnes
+       v
+Backend (Spring Boot)
+       |
+       | JPA / JDBC
+       v
+PostgreSQL
+```
+
+### Composants du projet
+
+- Frontend : interface web pour la gestion des personnes
+- Backend : API REST sécurisée et validée
+- PostgreSQL : base de données relationnelle
+- Prometheus : collecte des métriques applicatives
+- Grafana : visualisation des métriques et indicateurs de santé
+- Terraform : provisioning de l’infrastructure AWS
+- Helm : déploiement sur Kubernetes
+- GitHub Actions : automatisation du pipeline CI/CD
+
+---
+
+## 3. Stack technologique
+
+### Frontend
+- React 18
+- Vite
+- JavaScript / JSX
+- NGINX pour le service web dans les environnements conteneurisés
+
+### Backend
+- Java 17
+- Spring Boot 3.5
+- Spring Web
+- Spring Data JPA
+- Spring Validation
+- Spring Actuator
+- Micrometer + Prometheus
+
+### Base de données
+- PostgreSQL 17
+- Schéma généré automatiquement au démarrage
+
+### Déploiement & orchestration
+- Docker / Docker Compose
+- Kubernetes
+- Helm
+- Terraform
+- AWS ECS / ALB / RDS
+
+### Surveillance
+- Prometheus
+- Grafana
+
+### CI/CD
+- GitHub Actions
+- OIDC AWS pour accès sécurisé sans secrets stockés
+
+---
+
+## 4. Modèle de données
+
+La table principale est la table `personne`.
+
+### Structure
+
+| Champ | Type | Rôle |
 |---|---|---|
-| GET | /api/personnes | Liste |
-| GET | /api/personnes/{code} | Détail |
-| POST | /api/personnes | Création |
-| PUT | /api/personnes/{code} | Modification (name, cin) |
-| DELETE | /api/personnes/{code} | Suppression |
+| code | String | Identifiant principal unique |
+| name | String | Nom de la personne |
+| cin | String | Carte d’identité, unique et format 8 chiffres |
 
-Table `personne` (code PK, name, cin unique), créée automatiquement au démarrage.
+### Règles métier
 
+- `code` est obligatoire
+- `name` est obligatoire
+- `cin` est obligatoire et doit respecter le format `\d{8}`
+- le `code` ne peut pas être dupliqué
+- le `cin` ne peut pas être dupliqué
+- une personne inexistante déclenche une erreur `404`
+- un conflit métier déclenche une erreur `409`
 
+---
 
+## 5. API REST
 
+### Base URL
 
-Structure du projet:
-gestion-personnes/
-├── docker-compose.yml        # PostgreSQL 17
-├── backend/                  # Spring Boot 3.5, Java 25
-│   └── src/main/java/com/example/personnes/
-│       ├── Personne.java            # entité (code, name, cin)
-│       ├── PersonneRequest.java     # DTO avec validation
-│       ├── PersonneRepository.java
-│       ├── PersonneService.java     # règles métier
-│       ├── PersonneController.java  # API REST
-│       ├── ApiExceptionHandler.java # erreurs JSON propres
-│       └── CorsConfig.java
-└── frontend/                 # React 18 + Vite
-    └── src/ (App.jsx, PersonForm.jsx, api.js, styles.css)
-    
-Lancement:
+- Local : `http://localhost:8080/api/personnes`
+- Via le frontend NGINX : `http://localhost:3000/api/personnes`
 
-#sed -i 's/"credsStore"/"credsStore_old"/' ~/.docker/config.json
+### Endpoints
 
-##. Développement local
+| Méthode | Endpoint | Description |
+|---|---|---|
+| GET | `/api/personnes` | Liste toutes les personnes |
+| GET | `/api/personnes/{code}` | Récupère une personne par son code |
+| POST | `/api/personnes` | Crée une personne |
+| PUT | `/api/personnes/{code}` | Met à jour une personne |
+| DELETE | `/api/personnes/{code}` | Supprime une personne |
 
-démarre PostgreSQL:
-docker-compose up -d db            # PostgreSQL sur le port 5436
+### Exemple de payload
 
-cd backend && mvn spring-boot:run 
-démarre l’API sur http://localhost:8080.
+```json
+{
+  "code": "P0003",
+  "name": "Ali",
+  "cin": "92345678"
+}
+```
 
-cd frontend && npm install && npm run dev 
-ouvre l’interface sur http://localhost:5173.
+### Gestion des erreurs
 
-Etape 2/10 : 13/10/2026  de 18:15 à 19:15
+Le backend retourne des réponses JSON lisibles pour les erreurs de validation et les conflits métier.
 
-https://github.com/bassembenabbes/FullStackDevOpsProject
+Exemples :
 
-git init
-git add .
-git commit -m "first commit"
-git branch -M main
-git remote add origin https://github.com/bassembenabbes/FullStackDevOpsProject.git
-git push -u origin main
-Username for 'https://github.com': bassembenabbes
-Password for 'https://bassembenabbes@github.com': votre Token
-
-
-Etape 3/10 : 13/10/2026  de 21:25 à 23:25
-
-Dockeriser tout le projet : 
-un Dockerfile pour le backend (build Maven puis image JRE) 
-et un Dockerfile pour le frontend (build Vite servi par Nginx), 
-le tout dans le même docker-compose.yml.
-Un seul docker-compose up lancerait alors l’ensemble.
-
-## 1. Tout lancer avec Docker Compose
-docker-compose down
-    docker-compose up --build
-Application : http://localhost:3000 (API : http://localhost:8080/api/personnes)
-Java 17 : dans `docker-compose.yml`, mettre `JAVA_VERSION: 17` (et `mvn -Djava.version=17` en local).
-
-curl -i -X POST localhost:3000/api/personnes \
-  -H 'Content-Type: application/json' -H 'Origin: http://localhost:3000' \
-  -d '{"code":"P0003","name":"Ali","cin":"92345678"}'
-#!!!Invalid CORS reques!!! :Dans frontend/nginx.conf, ajoutez une ligne dans le bloc location /api/ :
-  location /api/ {
-    proxy_pass http://backend:8080;
-    proxy_set_header Host $host;
-    proxy_set_header Origin "";
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+```json
+{
+  "message": "Données invalides",
+  "fields": {
+    "cin": "Le CIN doit contenir 8 chiffres"
   }
-    
+}
+```
 
-Qualité : tests unitaires et d’intégration du backend (Testcontainers pour PostgreSQL)
+```json
+{
+  "message": "Ce CIN est déjà utilisé",
+  "fields": {
+    "cin": "Ce CIN est déjà utilisé"
+  }
+}
+```
 
-## 2. Tests (Docker requis pour Testcontainers)
-    cd backend && mvn verify
+---
 
-Kubernetes : le dossiers  FullStackDevOpsProject.
-Il faudrait des manifestes (Deployment, Service, Secret pour les identifiants de la base, PersistentVolumeClaim pour PostgreSQL, Ingress).
-## 3. Kubernetes (minikube / kind)
-minikube start
-minikube status
-kubectl get nodes
-eval $(minikube docker-env)
-docker context use default
-docker context show 
+## 6. Fonctionnalités du front
 
-# 1. Construire les images dans Minikube
-docker build -t personnes-backend:latest ./backend
-docker build -t personnes-frontend:latest ./frontend
+L’interface React permet de :
+- afficher la liste des personnes,
+- filtrer les données par mot-clé,
+- ajouter une personne,
+- modifier une personne existante,
+- supprimer une personne,
+- recevoir des retours visuels via toasts et messages d’erreur,
+- gérer les états de chargement et d’erreur.
 
-# 2. Vérifier qu'elles y sont
-minikube image ls | grep personnes
-docker.io/library/personnes-frontend:latest
-docker.io/library/personnes-backend:latest
+---
 
+## 7. Structure du dépôt
 
-# 3. Voir votre structure k8s
-ls -la k8s/    # ou l'emplacement de vos manifests
-
-
-    docker build -t personnes-backend:latest backend
-    docker build --no-cache -t personnes-backend:latest backend
-    docker build -t personnes-frontend:latest frontend
-    minikube image load personnes-backend:latest personnes-frontend:latest   # kind : kind load docker-image ...
-    
-    minikube addons enable ingress
-# 4. Déployer
-    kubectl apply -k k8s
-    kubectl -n personnes get pods -w
-Accès : ajouter `<ip> personnes.local` à /etc/hosts (`minikube ip`), ou sans Ingress :
-    kubectl -n personnes port-forward svc/frontend 3000:80
-    
-minikube ip
-192.168.49.2
-echo "$(minikube ip) personnes.local" | sudo tee -a /etc/hosts
-cat /etc/hosts | grep personnes
-
-# 5. Vérifier
-kubectl -n personnes get pods
-kubectl -n personnes get svc
-kubectl -n personnes get ingress
-
-Pipeline CI/CD : build, tests et push des images, avec  GitHub Actions.
-## 4. CI/CD (GitHub Actions)
-`.github/workflows/ci.yml` : tests backend, build frontend, puis build/push des images
-`ghcr.io/<compte>/personnes-backend` et `personnes-frontend` (push uniquement sur main et tags `v*`).
-
-docker pull ghcr.io/bassembenabbes/personnes-backend:sha-5983d68
-docker pull ghcr.io/bassembenabbes/personnes-frontend:sha-5983d68
-
-
-
-kubectl create secret docker-registry ghcr-secret \
-  --docker-server=ghcr.io \
-  --docker-username=bassembenabbes \
-  --docker-password=<VOTRE_PAT>  \
-  --docker-email=bassem.benabbes@gmail.com \
-  -n personnes
-  
-  Remplacez <VOTRE_PAT> par le token copié
-  
-  
-  imagePullSecrets:
-        - name: ghcr-secret        # ← AJOUTER
-      containers:
-        - name: backend
-          image: ghcr.io/bassembenabbes/personnes-backend:latest  # ← CHANGER
-          imagePullPolicy: Always   # ← CHANGER (car l'image distante peut être mise à jour)
-         
-         
-         
-kubectl apply -k k8s
-kubectl -n personnes get pods -w
-
-Vos pods devraient maintenant télécharger les images depuis GHCR. : GitHub Container Registry 
-
-Etape 4/10 : 14/10/2026 de 08:00-->11:30
-
-Iac avec AWS : https://577211136035.signin.aws.amazon.com/console
-
-Étape  					Dans le projet
-Réseau (VPC, Subnets)			network.tf : VPC, 2 sous-réseaux publics (ALB et tâches), 2 sous-réseaux privés (base de données)
-Sécurité (Security Groups)		security.tf : Internet → ALB → tâches ECS → RDS, chaque maillon n’accepte que le précédent
-Compute					ecs.tf : ECS Fargate, avec les images dans ECR (ecr.tf)
-Base de données				rds.tf : PostgreSQL 17 géré par AWS, mot de passe généré et stocké dans Secrets Manager
-Entrée publique				alb.tf : load balancer HTTP vers le frontend Nginx
-
-J’ai choisi ECS plutôt qu’EC2 ou EKS : c’est le plus simple.
-
-Initialisation, planification, création
-cd terraform
-aws configure                      # clés d'un utilisateur IAM
-terraform init
-terraform validate
-terraform plan -out tfplan
-terraform apply tfplan
-
-
-Le premier apply crée tout avec 0 tâche : les images n’existent pas encore dans ECR. 
-Ensuite :
-
-## . Pousser les images dans ECR
-Depuis le dossier terraform/ :
-
-REGION=$(echo $BACK | cut -d. -f4)        # us-east-1 chez vous
-
-    REGION=us-east-1
-    BACK=$(terraform output -raw ecr_backend_url)
-    FRONT=$(terraform output -raw ecr_frontend_url)
-    
-    aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin ${BACK%%/*}
-    
-    docker build -t $BACK:latest  ../backend  && docker push $BACK:latest
-    docker build -t $FRONT:latest ../frontend && docker push $FRONT:latest
-    
-    
-## . Demarrer l'application
-    terraform apply -var desired_count=1
-    terraform output app_url        # ouvrir cette URL publique de l'application
-    
-    http://personnes-alb-1488586856.us-east-1.elb.amazonaws.com
-    
-correction Frontend: 
-cd terraform
-FRONT=$(terraform output -raw ecr_frontend_url)
-docker build -t $FRONT:latest ../frontend && docker push $FRONT:latest
-aws ecs update-service --cluster personnes --service frontend --force-new-deployment --region us-east-1
-
-## Stack AWS monitoring Prometheus + Grafana
-
-Tu veux maintenant un monitoring AWS visuel avec Grafana pour l’application `personnes`. Le bon modèle est :
-
-- Backend Spring Boot dans ECS Fargate
-- Prometheus dans ECS Fargate pour scraper `/actuator/prometheus`
-- Grafana dans ECS Fargate avec datasource Prometheus
-- Dashboard Grafana dédié pour CPU, mémoire, requêtes HTTP, latence, uptime et health
-
-### Architecture
 ```text
-Spring Boot app (ECS)
-   -> /actuator/prometheus
-         |
-         v
-Prometheus (ECS)
-         |
-         v
-Grafana (ECS)
+FullStackDevOpsProject/
+├── backend/                         # API Spring Boot
+│   ├── Dockerfile
+│   ├── pom.xml
+│   └── src/
+│       ├── main/java/com/example/personnes/
+│       └── test/java/com/example/personnes/
+├── frontend/                        # Application React + Vite
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   ├── package.json
+│   └── src/
+├── helm/
+│   └── personnes/                  # Chart Helm pour Kubernetes
+├── k8s/                            # Manifests Kubernetes
+├── monitoring/
+│   ├── grafana/
+│   └── prometheus/
+├── terraform/                      # Infrastructure AWS (ECS, ALB, RDS, IAM)
+├── docker-compose.yml              # Environnement local complet
+├── README.md
+├── .github/workflows/              # Pipelines CI/CD
+└── ...
 ```
 
-### Fichiers de configuration
-- `terraform/monitoring.tf` : création des services ECS Prometheus + Grafana
-- `monitoring/prometheus/prometheus.yml` : configuration de scrape
-- `monitoring/grafana/provisioning/datasources/datasource.yml` : datasource Grafana -> Prometheus
-- `monitoring/grafana/provisioning/dashboards/backend-overview.json` : dashboard Grafana
-- `.github/workflows/deploy-monitoring.yml` : deployment automatique de la stack monitoring
+---
 
-### Déployer la stack AWS monitoring
+## 8. Démarrage local
+
+### Prérequis
+
+- Docker
+- Docker Compose
+- Java 17
+- Maven
+- Node.js 18+
+- npm
+
+### 1) Démarrer la base PostgreSQL
+
 ```bash
-cd terraform
-terraform init
-terraform validate
-terraform apply -auto-approve -var desired_count=1
+docker compose up -d db
 ```
 
-### Déployer uniquement la stack monitoring via GitHub Actions
+### 2) Lancer le backend
+
 ```bash
-git add .
-git commit -m "Add AWS monitoring stack"
-git push origin main
+cd backend
+mvn spring-boot:run
 ```
 
-Le workflow `.github/workflows/deploy-monitoring.yml` se déclenche sur `main` pour appliquer la configuration Terraform et créer les services ECS `prometheus` et `grafana`.
+L’API sera disponible sur :
+- `http://localhost:8080`
 
-### Vérifier les services ECS
+### 3) Lancer le frontend
+
 ```bash
-aws ecs describe-services \
-  --cluster personnes \
-  --services prometheus grafana \
-  --region us-east-1 \
-  --output table
+cd frontend
+npm install
+npm run dev
 ```
 
-### Ouvrir Grafana
-Tu peux ouvrir le port de Grafana en local pour le test rapide :
+L’application web sera accessible sur :
+- `http://localhost:5173`
+
+### 4) Démarrer l’environnement complet avec Docker Compose
+
 ```bash
-aws ecs describe-services --cluster personnes --services grafana --region us-east-1 --query 'services[0].events[*].message'
+docker compose up --build
 ```
 
-Puis, si tu exposes le service avec un ALB ou un port-forward de test, ouvre :
-```text
-http://<IP_GRAFANA>:3000
+Cela démarre :
+- PostgreSQL sur le port `5436`
+- Backend sur le port `8080`
+- Frontend sur le port `3000`
+- Prometheus sur le port `9090`
+- Grafana sur le port `3001`
+
+### Vérification rapide
+
+```bash
+curl http://localhost:8080/actuator/health
 ```
-Identifiants par défaut :
-```text
-user: admin
-password: admin
+
+---
+
+## 9. Tests
+
+Le backend contient des tests unitaires et d’intégration, notamment avec Testcontainers pour PostgreSQL.
+
+```bash
+cd backend
+mvn verify
 ```
 
-### Dashboard Grafana
-Dans Grafana, ouvre le dashboard `Personnes backend overview`.
-Il affiche :
-- CPU usage
-- Memory usage
-- Request rate
-- Avg latency
-- Service uptime
-- Health status
+### Ce que couvre la validation
+- validation des règles métier,
+- intégration Spring Data JPA,
+- tests du comportement HTTP,
+- vérification du bon comportement avec une base PostgreSQL isolée.
 
-La base se trouve dans les sous-réseaux personnes-private-0 et personnes-private-1. 
-Ils sont rattachés à la table de routage principale, qui ne contient que la route locale du VPC, sans passerelle Internet. 
-Les sous-réseaux publics passent par personnes-public-rt et personnes-igw. 
-Résultat : la base est invisible depuis Internet, et seul le Security Group des tâches ECS peut la contacter sur le port 5432.
+---
 
-Interroger la base directement
-La base étant privée, DBeaver ou psql depuis votre PC ne peuvent pas s’y connecter. 
-Les solutions possibles :
-- Passer par l’application : c’est ce que vous faites déjà, et c’est suffisant pour ce cours.
-- ECS Exec ou un hôte temporaire (bastion) dans le VPC : possible, mais cela demande une configuration supplémentaire.
-- RDS Query Editor : non disponible pour RDS PostgreSQL classique.
+## 10. Monitoring local
 
+Le projet intègre une stack de monitoring en local pour suivre la santé du backend et la performance des services.
 
-cd terraform
-terraform destroy -var desired_count=0
+### Services exposés
 
-Cela supprime tout, y compris la base et ses données. Vous pourrez tout recréer en quelques minutes avec terraform apply.
+- Prometheus : `http://localhost:9090`
+- Grafana : `http://localhost:3001`
+- Spring Boot metrics : `http://localhost:8080/actuator/prometheus`
 
+### Identifiants Grafana
 
-Choix à connaître
-Pas de NAT Gateway : cela économise environ 32 $/mois.
-Les tâches ont une IP publique, mais leur Security Group n’accepte que le load balancer.
-La base reste privée.
-Service Connect : le frontend joint le backend sous le nom backend:8080, comme dans Docker Compose et Kubernetes. Le nginx.conf ne change donc pas.
-Région : eu-west-3 (Paris), modifiable dans variables.tf.
-Coûts : l’ALB et RDS sont facturés à l’heure. Faites terraform destroy -var desired_count=0 quand vous avez fini de vous entraîner.
-Mot de passe : il apparaît dans le fichier d’état terraform.tfstate, qui ne doit pas être commité (le .gitignore fourni l’exclut).
+- Utilisateur : `admin`
+- Mot de passe : `admin`
 
-## Etape 5/10 : 14/10/2026 de 11:30---> 12:45
-chart Helm :
-Le chart reprend les manifestes de k8s/ sous forme de templates : le Secret PostgreSQL, le PVC, les Deployments et Services de PostgreSQL, du backend et du frontend, puis l’Ingress. 
-Tout se règle dans values.yaml.
+### Lancement du monitoring
 
----------------------------------------------------------------------------------------------------------------------
+```bash
+docker compose up -d db backend frontend prometheus grafana
+```
 
-Installation
-# 1. Vérifier le chart
+### Objectif du monitoring
+
+- suivre la disponibilité du backend,
+- surveiller le taux de requêtes,
+- mesurer les latences,
+- observer les ressources CPU et mémoire,
+- avoir un aperçu de l’état applicatif en temps réel.
+
+---
+
+## 11. Déploiement Kubernetes avec Helm
+
+Le projet est prêt pour un déploiement sur Kubernetes via Helm.
+
+### Vérification du chart
+
+```bash
 helm lint helm/personnes
-helm template personnes helm/personnes -n personnes | less
+helm template personnes helm/personnes -n personnes
+```
 
-# 2. Si vous aviez déployé k8s/ avec kubectl, le retirer d'abord
-kubectl delete -k k8s
+### Installation
 
-# 3. Installer (images locales déjà chargées dans minikube/kind)
+```bash
 helm upgrade --install personnes ./helm/personnes \
   -n personnes --create-namespace \
   --set postgres.auth.password='bassem!!!2026'
-  
-  
-
-kubectl -n personnes get pods -w
-
-L’application est ensuite sur http://personnes.local
-avec <minikube ip> personnes.local ajouté à /etc/hosts. 
-Sans Ingress, utilisez kubectl -n personnes port-forward svc/frontend 3000:80.
-
-Avec les images publiées par la CI (GHCR):
-
-helm upgrade --install personnes ./helm/personnes -n personnes --create-namespace \
-  --set backend.image.repository=ghcr.io/bassembenabbes/personnes-backend \
-  --set backend.image.tag=latest \
-  --set frontend.image.repository=ghcr.io/bassembenabbes/personnes-frontend \
-  --set frontend.image.tag=latest \
-  --set postgres.auth.password='bassem!!!2026'
-
----------------------------------------------------------------------------------------------------------------------
-Si les images sont privées, créez un secret ghcr-pull et ajoutez --set 'imagePullSecrets[0].name=ghcr-pull'.
-
-Ce qui change par rapport à k8s/
-Mot de passe : il se passe en paramètre (--set) ou via un secret existant (postgres.auth.existingSecret). Il n’est plus écrit en dur dans un fichier commité.
-Redéploiement automatique : un changement de secret redémarre le backend et PostgreSQL, grâce à une annotation checksum.
-Base externe : avec postgres.enabled=false et externalDatabase.url=jdbc:..., le chart n’installe plus PostgreSQL.
-Ingress : le TLS, l’hôte et les annotations sont réglables.
-
-Limite à connaître
-
-Les services s’appellent toujours backend, frontend et postgres, car nginx.conf relaie /api vers http://backend:8080.
-Il faut donc une seule release par namespace. 
-Pour plusieurs environnements (dev, prod), utilisez un namespace par environnement.
-
-
-## Etape 6/10 : 14/10/2026 de 13:00 -->16:00
-Suite du plan
-Il reste deux parties :
-
-A- CI/CD vers AWS : GitHub Actions construit les images, les pousse (build et push des images) dans ECR, puis déploiement sur ECS avec GitHub Actions (met à jour les services ECS).
- Plus besoin de docker build, docker push et aws ecs update-service à la main.
- ------------------------------------
- terraform/oidc.tf donne à GitHub le droit de déployer sur AWS.
-.github/workflows/ci.yml remplace votre ancien ci.yml
-
-# Fonctionnement
-Sur un push vers main, le pipeline enchaîne :
-1- Tests : les tests backend (unitaires et Testcontainers), le build du frontend et le lint Helm, en parallèle.
-2- Images : build du backend et du frontend, puis push dans ECR avec deux tags : latest et le hash du commit (github.sha), pour savoir quelle version tourne.
-3- Déploiement : mise à jour des services ECS, attente qu’ils soient stables, puis affichage de l’URL dans le résumé du job.
-Sur une pull request, seuls les tests et le build s’exécutent : ni push ni déploiement.
-
-# Sécurité : OIDC, pas de clés AWS
-Aucune clé AWS n’est stockée dans GitHub. 
-Le workflow demande à AWS un accès temporaire, et le rôle IAM personnes-github-deploy n’accepte que la branche main de votre dépôt. 
-Ses droits se limitent à pousser dans vos 2 dépôts ECR et à redéployer vos 2 services ECS.
-
-# Mise en place
-# 1. Terraform. Créez ou complétez terraform/terraform.tfvars (déjà exclu de Git) :
-cd terraform
-nano terraform.tfvars
-:
-region        = "us-east-1"
-desired_count = 1
-github_repo = "bassembenabbes/FullStackDevOpsProject"
-
-cd terraform
-terraform fmt
-terraform init
-terraform plan
-terraform apply
-terraform output github_role_arn
-
-terraform output app_url
-
-Mettez bien desired_count = 1 dans ce fichier : sans lui, un terraform apply remet les services à 0 tâche et coupe l’application. 
-Si Terraform répond EntityAlreadyExists pour le fournisseur OIDC, ajoutez create_github_oidc_provider = false dans le fichier.
-
-Erreur possible
-
-EntityAlreadyExists sur aws_iam_openid_connect_provider signifie qu’un fournisseur GitHub existe déjà dans votre compte AWS. Ajoutez dans terraform.tfvars :
-create_github_oidc_provider = false
-
-
-# 2. Secret GitHub. 
-Dans le dépôt, allez dans Settings → Secrets and variables → Actions → New repository secret. 
-Créez AWS_ROLE_ARN avec la valeur de github_role_arn.
-
-# 3. Premier déploiement.
-git add .github terraform/oidc.tf
-git commit -m "ci: build, push ECR et déploiement ECS"
-git push origin main
-
-# 4. Test. 
-Modifiez un texte de l’interface (par exemple le titre « Personnes » dans App.jsx), 
-poussez, puis rechargez l’URL de l’ALB après la fin du pipeline.
-
-terraform destroy
-
-# À savoir
-- Région et noms : le workflow suppose us-east-1 (celle de votre console), le cluster personnes et le load balancer personnes-alb. Modifiez le bloc env: en haut du fichier si besoin.
-- Tag latest : les task definitions restent gérées par Terraform et pointent vers :latest, et la CI force un redéploiement. Cela évite que Terraform et la CI se contredisent. Pour de la production, on utiliserait des tags immuables avec une nouvelle révision de task definition à chaque déploiement.
-- GHCR : l’ancien job qui poussait vers GHCR a disparu. Les images vont maintenant uniquement dans ECR, ce qui est ce dont ECS a besoin.
-- Échec : si un déploiement ne devient jamais sain, le job échoue après environ 10 minutes. Consultez alors les logs CloudWatch /ecs/personnes-backend et /ecs/personnes-frontend.
-
- ------------------------------------
-
-B- Validation locale avec Minikube : un job CI qui installe votre chart Helm sur un Minikube temporaire et vérifie que l’application répond avant tout déploiement cloud.
-
-C- EKS (option avancée) : il réutiliserait votre chart Helm.
-
-
-
-
-Logs : CloudWatch, groupes `/ecs/personnes-backend` et `/ecs/personnes-frontend`.
-
-## Etape 7/10 : 14/10/2026 de 18:00-->
-## Surveillance locale (Prometheus + Grafana)
-
-Le projet inclut maintenant un stack de monitoring local :
-
-Pour tout démarrer avec le monitoring local :
-
-```bash
-docker-compose up -d db backend frontend prometheus grafana
 ```
 
-Accès local
-Prometheus : http://localhost:9090
-Grafana : http://localhost:3001
-login : admin
-mot de passe : admin
-Endpoint métriques Spring Boot : http://localhost:8080/actuator/prometheus
+### Vérification des pods
 
-Prometheus scrape le backend sur `/actuator/prometheus`, 
-et Grafana est préconfiguré avec une datasource Prometheus ainsi qu’un dashboard local de base.
+```bash
+kubectl -n personnes get pods -w
+```
 
-### Kubernetes local via Helm (Minikube)
-
-Le projet est conçu pour être déployé entièrement via le chart Helm. Les services Kubernetes sont créés par Helm, pas par des manifests kubectl séparés.
-
-Pour le front de l’application, on utilise l’Ingress Minikube, qui est plus propre que de faire un port-forward en permanence.
+### Accès local via Minikube
 
 ```bash
 minikube start
 minikube addons enable ingress
 MINIKUBE_IP=$(minikube ip)
 echo "$MINIKUBE_IP personnes.local" | sudo tee -a /etc/hosts
-
-helm upgrade --install personnes ./helm/personnes \
-  -n personnes --create-namespace \
-  --set postgres.auth.password='bassem!!!2026'
-
-kubectl -n personnes get pods -w
 ```
 
-Accès dans le navigateur :
-- Frontend : http://personnes.local
-- Prometheus : http://localhost:9090 (via port-forward si besoin)
-- Grafana : http://localhost:3001 (via port-forward si besoin)
-  - login : admin
-  - mot de passe : admin
+Ensuite :
+- Frontend : `http://personnes.local`
+- Monitoring : port-forward vers `svc/prometheus` et `svc/grafana`
 
-Si l’on veut regarder aussi les services de monitoring sans Ingress dédié :
+### Port-forward utile
 
 ```bash
 kubectl -n personnes port-forward svc/prometheus 9090:9090
 kubectl -n personnes port-forward svc/grafana 3001:3000
 ```
 
-Le chart Helm inclut l’application complète, PostgreSQL, Prometheus et Grafana pour un déploiement local sur Minikube, avec l’Ingress pour le frontend et le port-forward uniquement pour les outils de monitoring.
+---
 
-> En local, `minikube ip` est la bonne clé pour faire pointer `personnes.local` vers l’Ingress. Le port-forward reste utile pour Prometheus et Grafana, mais le front principal doit passer par l’Ingress.
+## 12. Déploiement AWS avec Terraform
 
+Le projet est également préparé pour un déploiement sur AWS, avec une infrastructure IaC complète.
 
+### Composants AWS provisionnés
 
+- VPC
+- Sous-réseaux publics et privés
+- Security Groups
+- ALB (Application Load Balancer)
+- ECS Fargate
+- ECR pour les images backend/frontend
+- RDS PostgreSQL
+- IAM / OIDC pour GitHub Actions
 
+### Commandes principales
+
+```bash
 cd terraform
-terraform fmt
+terraform init
+terraform validate
+terraform plan
+terraform apply
+```
+
+### Pousser les images dans ECR
+
+```bash
+REGION=us-east-1
+BACK=$(terraform output -raw ecr_backend_url)
+FRONT=$(terraform output -raw ecr_frontend_url)
+
+aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin ${BACK%%/*}
+
+docker build -t $BACK:latest ../backend && docker push $BACK:latest
+docker build -t $FRONT:latest ../frontend && docker push $FRONT:latest
+```
+
+### Démarrer l’application
+
+```bash
+terraform apply -var desired_count=1
+terraform output app_url
+```
+
+---
+
+## 13. CI/CD avec GitHub Actions
+
+Le projet est conçu pour un pipeline de livraison automatisé.
+
+### Workflow principal
+
+Sur push vers la branche principale :
+1. exécution des tests backend,
+2. validation du build frontend,
+3. construction des images Docker,
+4. push des images vers ECR,
+5. mise à jour des services ECS,
+6. vérification de la santé des services.
+
+### Sécurité
+
+Le pipeline utilise OIDC AWS plutôt que des clés AWS stockées dans GitHub.
+Cela permet :
+- d’éviter la gestion de secrets long terme,
+- de limiter les permissions au strict nécessaire,
+- de sécuriser le déploiement automatisé.
+
+### Exemple de procédure
+
+```bash
+cd terraform
+terraform output github_role_arn
+```
+
+Puis créer un secret GitHub `AWS_ROLE_ARN` dans le dépôt. Le workflow utilise ensuite ce rôle pour se connecter à AWS et déployer les images.
+
+---
+
+## 14. Sécurité et bonnes pratiques
+
+Le projet applique plusieurs bonnes pratiques :
+- validation strict des entrées API,
+- règles métier sur le code et le CIN,
+- gestion des erreurs métier explicites,
+- séparation des responsabilités entre frontend, backend et base données,
+- utilisation d’images conteneurisées pour les environnements,
+- IaC avec Terraform pour la reproductibilité,
+- secrets et accès gérés de manière sécurisée,
+- monitoring pour la supervision et la detection rapide des incidents.
+
+---
+
+## 15. Analyse métier / valeur de l’application
+
+Cette application représente un exemple concret d’outil de gestion d’informations de référence, typique dans un environnement d’entreprise.
+
+### Cas d’usage métier
+- ajouter un contact ou un employé,
+- mettre à jour son dossier,
+- vérifier l’unicité des identifiants,
+- sécuriser la saisie des informations,
+- garantir l’intégrité des données,
+- simplifier les opérations administratives quotidiennes.
+
+### Bénéfices attendus
+- meilleure traçabilité des données,
+- gain de temps pour l’équipe opérationnelle,
+- réduction des erreurs manuelles,
+- meilleure évolutivité,
+- alignement sur des pratiques de développement modernes et de production industrialisée.
+
+---
+
+## 16. État actuel du projet
+
+Le projet est fonctionnel en local, avec :
+- backend Spring Boot opérationnel,
+- frontend React fonctionnel,
+- PostgreSQL prêt à l’emploi,
+- Docker Compose fonctionnel,
+- monitoring local intégré,
+- Helm disponible pour Kubernetes,
+- Terraform prêt pour la partie cloud AWS,
+- GitHub Actions en place pour l’automatisation.
+
+Cette structure permet de présenter le projet comme un exemple complet de solution applicative moderne, allant du développement jusqu’au déploiement opérateur.
+
+---
+
+## 17. Commandes utiles
+
+### Local
+
+```bash
+docker compose up -d db backend frontend prometheus grafana
+cd backend && mvn verify
+cd frontend && npm install && npm run dev
+```
+
+### Kubernetes
+
+```bash
+helm lint helm/personnes
+helm upgrade --install personnes ./helm/personnes -n personnes --create-namespace --set postgres.auth.password='bassem!!!2026'
+kubectl -n personnes get pods -w
+```
+
+### AWS
+
+```bash
+cd terraform
 terraform init
 terraform plan
 terraform apply
-terraform apply -auto-approve
-terraform output github_role_arn
+```
 
+### Monitoring
 
-terraform output app_url
+```bash
+kubectl -n personnes port-forward svc/prometheus 9090:9090
+kubectl -n personnes port-forward svc/grafana 3001:3000
+```
 
-terraform output -raw grafana_url
+---
 
-terraform destroy -var desired_count=0
+## 18. Conclusion
+
+Ce projet est bien plus qu’une simple application CRUD : c’est une démonstration complète d’une architecture moderne de développement et d’exploitation applicative. Il montre comment construire une solution solide, fiable et scalable, tout en mettant l’accent sur la qualité logicielle, la sécurité, l’automatisation et la supervision.
+
+Il constitue un excellent support de présentation technique et métier, car il couvre à la fois :
+- la logique applicative,
+- la conception d’architecture,
+- la sécurité,
+- le déploiement,
+- l’exploitation,
+- le parcours de livraison continue.
+
+---
+
+## 19. Référence rapide
+
+### URLs locales
+- Frontend : `http://localhost:5173`
+- Backend : `http://localhost:8080`
+- Prometheus : `http://localhost:9090`
+- Grafana : `http://localhost:3001`
+
+### Accès au système
+- Backend API : `/api/personnes`
+- Health check : `/actuator/health`
+- Metrics Prometheus : `/actuator/prometheus`

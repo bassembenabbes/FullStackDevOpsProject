@@ -63,6 +63,7 @@ ingress:
   enabled: true
   className: nginx
   host: personnes.local
+  hostGrafana: grafana.personnes.local
   annotations: {}
   tls:
     enabled: false
