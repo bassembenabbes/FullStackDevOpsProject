@@ -120,7 +120,7 @@ resource "aws_ecs_task_definition" "prometheus" {
       }]
       entryPoint = ["sh", "-c"]
       command = [<<-EOT
-        cat <<'CFG' > /tmp/prometheus.yml
+        cat <<'CFG' > /etc/prometheus/prometheus.yml
         global:
           scrape_interval: 15s
           evaluation_interval: 15s
@@ -135,7 +135,7 @@ resource "aws_ecs_task_definition" "prometheus" {
         CFG
 
         /bin/prometheus \
-          --config.file=/tmp/prometheus.yml \
+          --config.file=/etc/prometheus/prometheus.yml \
           --storage.tsdb.path=/prometheus \
           --web.enable-lifecycle
       EOT
@@ -180,9 +180,9 @@ resource "aws_ecs_task_definition" "grafana" {
       ]
       entryPoint = ["sh", "-c"]
       command = [<<-EOT
-        mkdir -p /tmp/grafana/provisioning/datasources /tmp/grafana/provisioning/dashboards
+        mkdir -p /etc/grafana/provisioning/datasources /etc/grafana/provisioning/dashboards
 
-        cat <<'DATASOURCE' > /tmp/grafana/provisioning/datasources/datasource.yml
+        cat <<'DATASOURCE' > /etc/grafana/provisioning/datasources/datasource.yml
         apiVersion: 1
 
         datasources:
@@ -195,7 +195,7 @@ resource "aws_ecs_task_definition" "grafana" {
             editable: false
         DATASOURCE
 
-        cat <<'DASHBOARD_CFG' > /tmp/grafana/provisioning/dashboards/dashboard.yml
+        cat <<'DASHBOARD_CFG' > /etc/grafana/provisioning/dashboards/dashboard.yml
         apiVersion: 1
 
         providers:
@@ -206,10 +206,10 @@ resource "aws_ecs_task_definition" "grafana" {
             disableDeletion: false
             editable: true
             options:
-              path: /tmp/grafana/provisioning/dashboards
+              path: /etc/grafana/provisioning/dashboards
         DASHBOARD_CFG
 
-        cat <<'JSON' > /tmp/grafana/provisioning/dashboards/backend-overview.json
+        cat <<'JSON' > /etc/grafana/provisioning/dashboards/backend-overview.json
         {
           "annotations": { "list": [] },
           "editable": true,
@@ -473,11 +473,6 @@ resource "aws_ecs_service" "prometheus" {
         dns_name = "prometheus"
       }
     }
-  }
-
-  timeouts {
-    create = "20m"
-    update = "20m"
   }
 
   depends_on = [aws_ecs_service.backend]
